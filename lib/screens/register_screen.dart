@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -48,20 +50,88 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void _register() {
-    if (_formKey.currentState!.validate() &&
-        _status != null &&
-        _selectedProgram.isNotEmpty) {
+  Future<Map<String, dynamic>> registerStudent(Map<String, dynamic> body) async {
+    final url = Uri.parse('http://192.168.1.19:3000/user/studentregistration');
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+    return jsonDecode(response.body);
+  }
+
+  void _register() async {
+    // Trim all input fields
+    final studentNumber = _studentNumberController.text.trim();
+    final firstName = _firstNameController.text.trim();
+    final middleName = _middleNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    // Validate form
+    if (!_formKey.currentState!.validate()) return;
+
+    if (studentNumber.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registration successful!')),
+        const SnackBar(content: Text('Student number cannot be empty')),
       );
-    } else if (_status == null) {
+      return;
+    }
+
+    if (_selectedProgram.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select your program')),
+      );
+      return;
+    }
+
+    if (_status == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select your status')),
       );
-    } else if (_selectedProgram.isEmpty) {
+      return;
+    }
+
+    if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select your program')),
+        const SnackBar(content: Text('Passwords do not match!')),
+      );
+      return;
+    }
+
+    final body = {
+      "student_number": studentNumber,
+      "first_name": firstName,
+      "middle_name": middleName,
+      "last_name": lastName,
+      "extensions": "",
+      "email": email,
+      "password": password,
+      "program": _selectedProgram,
+      "year_level": "1",
+      "status": _status,
+    };
+
+    try {
+      final result = await registerStudent(body);
+
+      if (result['isAdded']['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registration successful!')),
+        );
+        Navigator.pushNamed(context, '/login');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['isAdded']['message'] ?? 'Registration failed'),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
       );
     }
   }
@@ -105,7 +175,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       const SizedBox(height: 15),
 
                       const Text(
-                        "SIGNUP",
+                        "STUDENT REGISTRATION",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 28,
@@ -116,7 +186,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       const SizedBox(height: 25),
 
-                      // Student number and email in one row
+                      // Student number and email
                       Row(
                         children: [
                           Expanded(
@@ -138,7 +208,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      // Name label
+                      // Name
                       Row(
                         children: const [
                           Icon(Icons.person, color: Colors.white),
@@ -156,7 +226,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       const SizedBox(height: 10),
 
-                      // First, Middle, Last Name (one column each, no icons)
                       _buildPlainInputField(
                         controller: _firstNameController,
                         hint: "FIRST NAME",
@@ -180,7 +249,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           borderRadius: BorderRadius.circular(30),
                         ),
                         child: DropdownButtonFormField<String>(
-                          value: _selectedProgram.isEmpty ? null : _selectedProgram,
+                          initialValue: _selectedProgram.isEmpty ? null : _selectedProgram,
                           dropdownColor: Colors.red[700],
                           iconEnabledColor: Colors.white,
                           decoration: InputDecoration(
@@ -216,8 +285,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           onChanged: (value) {
                             setState(() => _selectedProgram = value!);
                           },
-                          validator: (value) =>
-                              value == null || value.isEmpty ? "Please select a program" : null,
                         ),
                       ),
                       const SizedBox(height: 15),
@@ -229,12 +296,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           borderRadius: BorderRadius.circular(30),
                         ),
                         child: DropdownButtonFormField<String>(
-                          value: _status,
+                          initialValue: _status,
                           dropdownColor: Colors.red[700],
                           iconEnabledColor: Colors.white,
                           decoration: InputDecoration(
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 20),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(30),
                               borderSide: BorderSide.none,
@@ -252,62 +318,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             color: Colors.white,
                           ),
                           items: const [
-                            DropdownMenuItem(
-                              value: "Enrolled",
-                              child: Text(
-                                "Enrolled",
-                                style: TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            DropdownMenuItem(
-                              value: "Unenrolled",
-                              child: Text(
-                                "Unenrolled",
-                                style: TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            DropdownMenuItem(
-                              value: "Graduated",
-                              child: Text(
-                                "Graduated",
-                                style: TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            DropdownMenuItem(
-                              value: "On Leave",
-                              child: Text(
-                                "On Leave",
-                                style: TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            DropdownMenuItem(
-                              value: "Dropped",
-                              child: Text(
-                                "Dropped",
-                                style: TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
+                            DropdownMenuItem(value: "Enrolled", child: Text("Enrolled", style: TextStyle(color: Colors.white))),
+                            DropdownMenuItem(value: "Unenrolled", child: Text("Unenrolled", style: TextStyle(color: Colors.white))),
+                            DropdownMenuItem(value: "Graduated", child: Text("Graduated", style: TextStyle(color: Colors.white))),
+                            DropdownMenuItem(value: "On Leave", child: Text("On Leave", style: TextStyle(color: Colors.white))),
+                            DropdownMenuItem(value: "Dropped", child: Text("Dropped", style: TextStyle(color: Colors.white))),
                           ],
                           onChanged: (value) {
                             setState(() => _status = value);
                           },
-                          validator: (value) =>
-                              value == null ? "Please select status" : null,
                         ),
                       ),
                       const SizedBox(height: 15),
@@ -325,17 +344,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         hint: "CONFIRM PASSWORD",
                         icon: Icons.lock_outline,
                         obscureText: true,
-                      ),
-                      const SizedBox(height: 25),
-
-                      // Role Toggle
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildRoleOption("Student"),
-                          const SizedBox(width: 20),
-                          _buildRoleOption("Registrar"),
-                        ],
                       ),
                       const SizedBox(height: 25),
 
@@ -399,9 +407,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       style: const TextStyle(color: Colors.black, fontFamily: 'Montserrat'),
       decoration: InputDecoration(
         prefixIcon: Padding(
-          padding: const EdgeInsets.all(8.0), // Add padding around the icon
+          padding: const EdgeInsets.all(8.0),
           child: Container(
-            padding: const EdgeInsets.all(8), // Adjust inner padding of the icon
+            padding: const EdgeInsets.all(8),
             decoration: const BoxDecoration(
               color: Colors.red,
               shape: BoxShape.circle,
@@ -410,20 +418,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
         hintText: hint,
-        hintStyle: const TextStyle(
-          color: Colors.black54,
-          fontFamily: 'Montserrat',
-        ),
+        hintStyle: const TextStyle(color: Colors.black54, fontFamily: 'Montserrat'),
         filled: true,
         fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: BorderSide.none,
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
       ),
-      validator: (value) =>
-          value!.isEmpty ? 'Please enter your ${hint.toLowerCase()}' : null,
+      validator: (value) => value!.trim().isEmpty ? 'Please enter your ${hint.toLowerCase()}' : null,
     );
   }
 
@@ -436,21 +437,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       style: const TextStyle(color: Colors.black, fontFamily: 'Montserrat'),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(
-          color: Colors.black54,
-          fontFamily: 'Montserrat',
-        ),
+        hintStyle: const TextStyle(color: Colors.black54, fontFamily: 'Montserrat'),
         filled: true,
         fillColor: Colors.white,
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: BorderSide.none,
-        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
       ),
-      validator: (value) =>
-          value!.isEmpty ? 'Please enter your ${hint.toLowerCase()}' : null,
+      validator: (value) => value!.trim().isEmpty ? 'Please enter your ${hint.toLowerCase()}' : null,
     );
   }
 
@@ -458,13 +451,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          role.toUpperCase(),
-          style: const TextStyle(
-            color: Colors.white,
-            fontFamily: 'Montserrat',
-          ),
-        ),
+        Text(role.toUpperCase(), style: const TextStyle(color: Colors.white, fontFamily: 'Montserrat')),
         Radio<String>(
           value: role,
           groupValue: _selectedRole,
@@ -479,3 +466,5 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
+
+

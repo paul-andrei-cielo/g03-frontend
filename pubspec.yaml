@@ -16,12 +16,15 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  http: ^1.2.0
 
 flutter:
   uses-material-design: true
 
   assets:
     - assets/images/sdca_whitelogo.png
+    - assets/images/Req-ITLogo.png
+    - assets/images/Req-ITLongLogo.png
 
   fonts:
     - family: Montserrat

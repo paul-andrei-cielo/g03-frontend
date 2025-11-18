@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'student_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -9,20 +12,63 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _studentNumberController = TextEditingController();
+  final _idController = TextEditingController();
   final _passwordController = TextEditingController();
+
+  String _loginType = 'Student'; // Default login type
 
   @override
   void dispose() {
-    _studentNumberController.dispose();
+    _idController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  void _login() {
-    if (_formKey.currentState!.validate()) {
+  void _login() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final id = _idController.text.trim();
+    final password = _passwordController.text.trim();
+
+    final String endpoint = _loginType == 'Student'
+        ? 'http://192.168.1.19:3000/user/studentlogin'
+        : 'http://192.168.1.19:3000/user/stafflogin';
+
+    final Map<String, dynamic> body = _loginType == 'Student'
+        ? {"student_number": id, "password": password}
+        : {"employee_number": id, "password": password};
+
+    try {
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(body),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode != 200 || data['success'] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(data['message'] ?? "Login failed")),
+        );
+        return;
+      }
+
+      final String token = data['token'];
+
+      if (_loginType == 'Student') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => StudentDashboard(token: token),
+          ),
+        );
+      } else {
+        Navigator.pushReplacementNamed(context, '/registrar_dashboard');
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login successful!')),
+        SnackBar(content: Text("Error: $e")),
       );
     }
   }
@@ -58,7 +104,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Logo
                       Image.asset(
                         'assets/images/sdca_whitelogo.png',
                         height: 60,
@@ -71,21 +116,38 @@ class _LoginScreenState extends State<LoginScreen> {
                           color: Colors.white,
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          fontFamily: 'Montserrat',
                           letterSpacing: 1.2,
                         ),
                       ),
                       const SizedBox(height: 25),
 
-                      // Student Number
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildLoginTypeOption(
+                            type: 'Student',
+                            icon: Icons.school,
+                            label: 'Student',
+                          ),
+                          const SizedBox(width: 25),
+                          _buildLoginTypeOption(
+                            type: 'Employee',
+                            icon: Icons.business_center,
+                            label: 'Registrar Staff',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 25),
+
                       _buildInputField(
-                        controller: _studentNumberController,
-                        hint: "STUDENT NUMBER",
+                        controller: _idController,
+                        hint: _loginType == 'Student'
+                            ? "STUDENT NUMBER"
+                            : "EMPLOYEE ID",
                         icon: Icons.badge,
                       ),
                       const SizedBox(height: 20),
 
-                      // Password
                       _buildInputField(
                         controller: _passwordController,
                         hint: "PASSWORD",
@@ -94,22 +156,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 10),
 
-                      // Forgot Password link
                       Align(
                         alignment: Alignment.centerRight,
                         child: GestureDetector(
                           onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Forgot Password tapped!'),
-                              ),
-                            );
+                            Navigator.pushNamed(context, '/forgot_password');
                           },
                           child: const Text(
                             "Forgot Password?",
                             style: TextStyle(
                               color: Colors.white,
-                              fontFamily: 'Montserrat',
                               fontWeight: FontWeight.bold,
                               decoration: TextDecoration.underline,
                             ),
@@ -118,7 +174,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 30),
 
-                      // Login Button
                       ElevatedButton(
                         onPressed: _login,
                         style: ElevatedButton.styleFrom(
@@ -131,7 +186,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: const Text(
                           "LOGIN",
                           style: TextStyle(
-                            fontFamily: 'Montserrat',
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -140,16 +194,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      // Link to Register
                       GestureDetector(
                         onTap: () {
-                          Navigator.pushNamed(context, '/register');
+                          if (_loginType == 'Student') {
+                            Navigator.pushNamed(context, '/register');
+                          } else {
+                            Navigator.pushNamed(context, '/staff_register');
+                          }
                         },
-                        child: const Text(
+                        child: Text(
                           "DON’T HAVE AN ACCOUNT?\nREGISTER HERE",
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'Montserrat',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                             decoration: TextDecoration.underline,
@@ -167,6 +223,39 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Widget _buildLoginTypeOption({
+    required String type,
+    required IconData icon,
+    required String label,
+  }) {
+    final isSelected = _loginType == type;
+    return GestureDetector(
+      onTap: () => setState(() => _loginType = type),
+      child: Row(
+        children: [
+          Radio<String>(
+            value: type,
+            groupValue: _loginType,
+            activeColor: Colors.white,
+            onChanged: (value) => setState(() => _loginType = value!),
+          ),
+          Icon(
+            icon,
+            color: isSelected ? Colors.white : Colors.white70,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Colors.white : Colors.white70,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInputField({
     required TextEditingController controller,
     required String hint,
@@ -176,10 +265,10 @@ class _LoginScreenState extends State<LoginScreen> {
     return TextFormField(
       controller: controller,
       obscureText: obscureText,
-      style: const TextStyle(color: Colors.black, fontFamily: 'Montserrat'),
+      style: const TextStyle(color: Colors.black),
       decoration: InputDecoration(
         prefixIcon: Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(8),
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: const BoxDecoration(
@@ -196,7 +285,8 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+        contentPadding:
+            const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(30),
           borderSide: BorderSide.none,
@@ -207,3 +297,5 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+
+
