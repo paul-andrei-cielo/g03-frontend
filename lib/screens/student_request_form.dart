@@ -3,8 +3,10 @@ import 'request_summary_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+const String baseUrl = 'https://g03-backend.onrender.com';
+
 class StudentRequestForm extends StatefulWidget {
-  final String token; // JWT token from login
+  final String token;
   const StudentRequestForm({super.key, required this.token});
 
   @override
@@ -19,6 +21,12 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
   final TextEditingController _semesterController = TextEditingController();
   final TextEditingController _dateGraduatedController = TextEditingController();
   final TextEditingController _contactNoController = TextEditingController();
+
+  String studentName = "Loading...";
+  String studentNumber = "Loading...";
+  String studentId = "";
+
+  final TextEditingController _purposeController = TextEditingController();
 
   final List<Map<String, dynamic>> _documents = [
     {"name": "Transcript of Records", "price": 500, "selected": false, "remarks": "", "copies": 1},
@@ -47,15 +55,41 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
     return selected.join(", ");
   }
 
+  @override
+  void initState() {
+    super.initState();
+    fetchStudentData();
+  }
+
+  Future<void> fetchStudentData() async {
+    try {
+      final payload = json.decode(utf8.decode(base64.decode(widget.token.split('.')[1])));
+      final userId = payload['id'];
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/$userId'),
+        headers: {'Authorization': 'Bearer ${widget.token}', 'Content-Type': 'application/json'},
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && data['user'] != null) {
+          final user = data['user'];
+          setState(() {
+            studentName = '${user['first_name'] ?? 'Unknown'} ${user['last_name'] ?? ''}'.trim();
+            studentNumber = user['student_number'] ?? 'Unknown';
+            studentId = userId;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error fetching student data: $e');
+    }
+  }
+
   // -------------------------
   // FETCH STUDENT REQUESTS
   // -------------------------
   Future<List<dynamic>> fetchMyRequests() async {
-    // Use the correct host for your environment:
-    // - Flutter web (dev server): http://localhost:3000
-    // - Android emulator: http://10.0.2.2:3000
-    // - Physical device / different PC: http://<your-machine-ip>:3000  (enable CORS on backend)
-    final url = Uri.parse('http://localhost:3000/requests/mine');
+    final url = Uri.parse('$baseUrl/requests/mine');
 
     final response = await http.get(
       url,
@@ -112,9 +146,9 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      const Text(
-                        "Jereeza Mae Mayuga",
-                        style: TextStyle(
+                      Text(
+                        studentName,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontFamily: 'Montserrat',
                           fontWeight: FontWeight.bold,
@@ -122,9 +156,9 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const Text(
-                        "202300000",
-                        style: TextStyle(
+                      Text(
+                        studentNumber,
+                        style: const TextStyle(
                           color: Colors.white70,
                           fontFamily: 'Montserrat',
                           fontSize: 14,
@@ -193,8 +227,8 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                               },
                             ),
                             const SizedBox(width: 10),
-                            const Text(
-                              "Hello, Jereeza Mae!",
+                            Text(
+                              "Hello, ${studentName.split(' ').first}!",
                               style: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontWeight: FontWeight.bold,
@@ -296,6 +330,19 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
   // SUBMIT REQUEST FUNCTION
   // -------------------------
   void _submitRequest() async {
+    if (studentId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Student data not loaded. Try again.')));
+      return;
+    }
+    if (_documents.where((d) => d['selected']).isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select at least one document.')));
+      return;
+    }
+    if (_contactNoController.text.isEmpty || _lastSemController.text.isEmpty || _semesterController.text.isEmpty || _purposeController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fill all required fields.')));
+      return;
+    }
+
     try {
       final selectedDocuments = _documents
           .where((doc) => doc["selected"])
@@ -308,8 +355,9 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
           .toList();
 
       final body = {
-        "student_id": "202300000",
+        "student_id": studentId,
         "documents": selectedDocuments,
+        "purpose": _purposeController.text,
         "contact_no": _contactNoController.text,
         "last_sem_attended": _lastSemController.text,
         "semester": _semesterController.text,
@@ -317,11 +365,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
         "total_amount": _totalPrice,
       };
 
-      // Choose correct host for your running environment:
-      // - Flutter Web: use 'http://localhost:3000'
-      // - Android emulator: use 'http://10.0.2.2:3000'
-      // - Physical device: use 'http://<your-machine-ip>:3000' and enable CORS.
-      final url = Uri.parse("http://localhost:3000/requests/createrequest");
+      final url = Uri.parse("$baseUrl/requests/createrequest");
 
       print("POST $url");
       print("Request body: ${jsonEncode(body)}");
@@ -391,7 +435,6 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
     }
   }
 
-  // Sidebar nav item builder (fixed implementation)
   Widget _buildNavItem(IconData icon, String label) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -437,7 +480,6 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
     );
   }
 
-  // Step 1 & 2 UI code (kept faithful to your original)
   Widget _buildStep1Form() {
     return Container(
       key: const ValueKey(1),
@@ -489,6 +531,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
               ],
             ),
             _buildTextField("Date Graduated", "Optional", _dateGraduatedController),
+            _buildTextField("Purpose *", "e.g., For employment", _purposeController),
             _buildTextField("Contact No. *", "", _contactNoController),
           ],
         ),
@@ -682,7 +725,7 @@ class StudentRequestsHistoryScreen extends StatelessWidget {
   const StudentRequestsHistoryScreen({super.key, required this.token});
 
   Future<List<dynamic>> fetchMyRequests() async {
-    final url = Uri.parse('http://localhost:3000/requests/mine');
+    final url = Uri.parse('$baseUrl/requests/mine');
     final response = await http.get(url, headers: {
       'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
@@ -713,7 +756,7 @@ class StudentRequestsHistoryScreen extends StatelessWidget {
             itemCount: requests.length,
             itemBuilder: (context, index) {
               final req = requests[index];
-              final docNames = (req['doc_type_id'] as List).map((d) => d['doc_name']).join(", ");
+              final docNames = (req['documents'] as List).map((d) => d['name']).join(", ");
               return ListTile(
                 title: Text(docNames),
                 subtitle: Text("Status: ${req['status']}"),

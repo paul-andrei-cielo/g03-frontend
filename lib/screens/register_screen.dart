@@ -51,7 +51,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<Map<String, dynamic>> registerStudent(Map<String, dynamic> body) async {
-    final url = Uri.parse('http://192.168.1.19:3000/user/studentregistration');
+    final String baseUrl = 'https://g03-backend.onrender.com';
+    final url = Uri.parse('$baseUrl/user/studentregistration');
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},

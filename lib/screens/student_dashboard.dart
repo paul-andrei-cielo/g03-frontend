@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http; 
+import 'dart:convert'; 
 import 'student_request_form.dart';
+import 'student_all_requests_screen.dart';
+
+const String baseUrl = 'https://g03-backend.onrender.com';
 
 class StudentDashboard extends StatefulWidget {
   final String token;
@@ -12,11 +17,164 @@ class StudentDashboard extends StatefulWidget {
 class _StudentDashboardState extends State<StudentDashboard> {
   bool isCollapsed = false;
 
-  final String studentName = "Jereeza Mae Mayuga";
-  final String studentNumber = "202300000";
+  String studentName = "Loading...";
+  String studentNumber = "Loading...";
+  List<dynamic> requests = [];
+  bool isLoading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    fetchUserData(); 
+    fetchRequests();
+  }
+
+  // In fetchUserData()
+Future<void> fetchUserData() async {
+  try {
+    print('Fetching user data...');
+    final payload = json.decode(utf8.decode(base64.decode(widget.token.split('.')[1])));
+    final userId = payload['id'];
+    print('Decoded user ID: $userId');
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/user/$userId'),
+      headers: {
+        'Authorization': 'Bearer ${widget.token}',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    print('Response status: ${response.statusCode}');
+    print('Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      // Add null check for 'success'
+      if (data != null && data['success'] == true && data['user'] != null) {
+        final user = data['user'];
+        print('User data: $user');
+        setState(() {
+          studentName = '${user['first_name'] ?? 'Unknown'} ${user['last_name'] ?? ''}'.trim();  // Fallback if fields are null
+          studentNumber = user['student_number'] ?? 'Unknown';
+        });
+      } else {
+        print('User data fetch failed: success=${data['success']}, message=${data['message']}');
+        setError('Failed to load user data: ${data['message'] ?? 'Unknown error'}');
+      }
+    } else {
+      setError('Failed to load user data: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('Error in fetchUserData: $e');
+    setError('Error fetching user data: $e');
+  }
+}
+
+// In fetchRequests()
+Future<void> fetchRequests() async {
+  try {
+    print('Fetching requests...');
+    final response = await http.get(
+      Uri.parse('$baseUrl/requests/mine'),  // Double-check this URL
+      headers: {
+        'Authorization': 'Bearer ${widget.token}',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    print('Requests response status: ${response.statusCode}');
+    print('Requests response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      // Add null check for 'success' and 'requests'
+      if (data != null && data['success'] == true && data['requests'] is List) {
+        print('Requests data: ${data['requests']}');
+        setState(() {
+          requests = List<dynamic>.from(data['requests']);
+          isLoading = false;
+        });
+      } else {
+        print('Requests fetch failed: success=${data['success']}, message=${data['message']}');
+        setError('Failed to load requests: ${data['message'] ?? 'Invalid data'}');
+      }
+    } else {
+      setError('Failed to load requests: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('Error in fetchRequests: $e');
+    setError('Error fetching requests: $e');
+  } finally {
+    setState(() {
+      isLoading = false;
+    });
+  }
+}
+
+  void setError(String message) {
+    setState(() {
+      errorMessage = message;
+      isLoading = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Map<String, dynamic> getSummaryData() {
+    if (requests.isEmpty) {  // Early return if no requests
+      return {
+        'activeCount': '0',
+        'activeSubtitle': 'No active requests.',
+        'readyCount': '0',
+        'readySubtitle': 'No documents ready.',
+      };
+    }
+
+    int activeCount = requests.where((r) => r['status'] != 'CLAIMED').length;
+    int readyCount = requests.where((r) => r['status'] == 'FOR PICKUP').length;
+
+    String activeSubtitle = activeCount > 0 ? "Request In Progress." : "No active requests.";
+    String readySubtitle = readyCount > 0 ? "Ready for pickup." : "No documents ready.";
+
+    if (activeCount > 0) {
+      try {
+        final filtered = requests.where((r) => r['status'] != 'CLAIMED' && r['request_date'] != null);
+        if (filtered.isNotEmpty) {
+          final latestActive = filtered.reduce((a, b) => DateTime.parse(a['request_date']).isAfter(DateTime.parse(b['request_date'])) ? a : b);
+          activeSubtitle = "Latest: ${latestActive['request_date']}";
+        }
+      } catch (e) {
+        activeSubtitle = "Request In Progress.";  // Fallback on error
+      }
+    }
+
+    if (readyCount > 0) {
+      try {
+        final filtered = requests.where((r) => r['status'] == 'FOR PICKUP' && r['request_date'] != null);
+        if (filtered.isNotEmpty) {
+          final latestReady = filtered.reduce((a, b) => DateTime.parse(a['request_date']).isAfter(DateTime.parse(b['request_date'])) ? a : b);
+          readySubtitle = "Latest: ${latestReady['request_date']}";
+        }
+      } catch (e) {
+        readySubtitle = "Ready for pickup.";  // Fallback on error
+      }
+    }
+
+    return {
+      'activeCount': activeCount.toString(),
+      'activeSubtitle': activeSubtitle,
+      'readyCount': readyCount.toString(),
+      'readySubtitle': readySubtitle,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
+  final summary = getSummaryData();
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Row(
@@ -136,8 +294,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
                               },
                             ),
                             const SizedBox(width: 10),
-                            const Text(
-                              "Hello, Jereeza Mae!",
+                            Text(
+                              "Hello, ${studentName.split(' ').first}!",
                               style: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontWeight: FontWeight.bold,
@@ -226,16 +384,16 @@ class _StudentDashboardState extends State<StudentDashboard> {
                                 children: [
                                   _buildSummaryCard(
                                     title: "Active Request",
-                                    count: "2",
-                                    subtitle: "Request In Progress.",
+                                    count: summary['activeCount'],
+                                    subtitle: summary['activeSubtitle'],
                                     buttonText: "View All Requests",
                                     icon: Icons.notifications,
                                   ),
                                   const SizedBox(height: 15),
                                   _buildSummaryCard(
                                     title: "Ready for Claim",
-                                    count: "0",
-                                    subtitle: "Requested on Oct 14, 2025",
+                                    count: summary['readyCount'],
+                                    subtitle: summary['readySubtitle'],
                                     buttonText: "Track Progress",
                                     icon: Icons.list_alt,
                                   ),
@@ -353,7 +511,20 @@ class _StudentDashboardState extends State<StudentDashboard> {
               Icon(icon, color: Colors.red[900], size: 30),
               const SizedBox(height: 10),
               ElevatedButton(
-                onPressed: () {},
+                onPressed: () {
+                  if (buttonText == "View All Requests") {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => StudentAllRequestsScreen(token: widget.token),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('$buttonText clicked')),
+                    );
+                  }
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red[900],
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),

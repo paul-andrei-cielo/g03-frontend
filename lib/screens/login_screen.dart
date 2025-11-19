@@ -30,9 +30,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final id = _idController.text.trim();
     final password = _passwordController.text.trim();
 
+    final String baseUrl = 'https://g03-backend.onrender.com';
+
     final String endpoint = _loginType == 'Student'
-        ? 'http://192.168.1.19:3000/user/studentlogin'
-        : 'http://192.168.1.19:3000/user/stafflogin';
+        ? '$baseUrl/user/studentlogin'
+        : '$baseUrl/user/stafflogin';
 
     final Map<String, dynamic> body = _loginType == 'Student'
         ? {"student_number": id, "password": password}

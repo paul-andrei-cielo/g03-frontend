@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:registrar_app/screens/staff_register_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
-import 'screens/student_dashboard.dart'; 
+// import 'screens/student_dashboard.dart'; 
 import 'screens/forgot_password_screen.dart';
 import 'screens/registrar_dashboard.dart';
 
