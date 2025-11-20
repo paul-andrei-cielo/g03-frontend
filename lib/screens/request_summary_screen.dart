@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:registrar_app/screens/student_dashboard.dart';
 
 class RequestSummaryScreen extends StatelessWidget {
   final String requestId;
   final String documentType;
   final int copies;
   final double totalAmount;
+  final String token;
 
   const RequestSummaryScreen({
     super.key,
@@ -12,6 +14,7 @@ class RequestSummaryScreen extends StatelessWidget {
     required this.documentType,
     required this.copies,
     required this.totalAmount,
+    required this.token,
   });
 
   @override
@@ -108,7 +111,12 @@ class RequestSummaryScreen extends StatelessWidget {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (context) => StudentDashboard(token: token),
+                      ),
+                      (route) => false,
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red[900],

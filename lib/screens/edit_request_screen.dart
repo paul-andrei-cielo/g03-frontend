@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
-import 'request_summary_screen.dart';
-import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:registrar_app/screens/student_all_requests_screen.dart';
+import 'dart:convert';
+import 'request_summary_screen.dart';
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
-class StudentRequestForm extends StatefulWidget {
+class EditRequestScreen extends StatefulWidget {
   final String token;
-  const StudentRequestForm({super.key, required this.token});
+  final Map<String, dynamic> request;
+
+  const EditRequestScreen({super.key, required this.token, required this.request});
 
   @override
-  State<StudentRequestForm> createState() => _StudentRequestFormState();
+  State<EditRequestScreen> createState() => _EditRequestScreenState();
 }
 
-class _StudentRequestFormState extends State<StudentRequestForm> {
+class _EditRequestScreenState extends State<EditRequestScreen> {
   bool isCollapsed = false;
   int _currentStep = 1;
 
@@ -21,12 +24,11 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
   final TextEditingController _semesterController = TextEditingController();
   final TextEditingController _dateGraduatedController = TextEditingController();
   final TextEditingController _contactNoController = TextEditingController();
+  final TextEditingController _purposeController = TextEditingController();
 
   String studentName = "Loading...";
   String studentNumber = "Loading...";
   String studentId = "";
-
-  final TextEditingController _purposeController = TextEditingController();
 
   final List<Map<String, dynamic>> _documents = [
     {"name": "Transcript of Records", "price": 500, "selected": false, "remarks": "", "copies": 1},
@@ -51,14 +53,38 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
         .where((doc) => doc["selected"])
         .map((doc) => "${doc['name']} (${doc['copies']}x)")
         .toList();
-
     return selected.join(", ");
+  }
+
+  int getTotalCopies() {
+    return _documents
+      .where((doc) => doc["selected"])
+      .fold<int>(0, (sum, doc) => sum + (doc["copies"] as int));
   }
 
   @override
   void initState() {
     super.initState();
     fetchStudentData();
+    // Pre-fill with existing request data
+    _purposeController.text = widget.request['purpose'] ?? '';
+    _contactNoController.text = widget.request['contact_number'] ?? '';
+    _lastSemController.text = widget.request['last_sem_attended'] ?? '';
+    _semesterController.text = widget.request['semester'] ?? '';
+    _dateGraduatedController.text = widget.request['date_graduated'] ?? '';
+    // Pre-select documents from the request
+    List<dynamic> existingDocs = widget.request['documents'] ?? [];
+    for (var doc in _documents) {
+      var existing = existingDocs.firstWhere(
+        (e) => e['name'] == doc['name'],
+        orElse: () => null,
+      );
+      if (existing != null) {
+        doc['selected'] = true;
+        doc['copies'] = existing['copies'] ?? 1;
+        doc['remarks'] = existing['remarks'] ?? '';
+      }
+    }
   }
 
   Future<void> fetchStudentData() async {
@@ -85,42 +111,94 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
     }
   }
 
-  // -------------------------
-  // FETCH STUDENT REQUESTS
-  // -------------------------
-  Future<List<dynamic>> fetchMyRequests() async {
-    final url = Uri.parse('$baseUrl/requests/mine');
+  Future<void> updateRequest() async {
+    if (studentId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Student data not loaded. Try again.')));
+      return;
+    }
+    if (_documents.where((d) => d['selected']).isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select at least one document.')));
+      return;
+    }
+    if (_contactNoController.text.isEmpty || _lastSemController.text.isEmpty || _semesterController.text.isEmpty || _purposeController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fill all required fields.')));
+      return;
+    }
 
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer ${widget.token}',
-        'Content-Type': 'application/json',
-      },
-    );
+    try {
+      final selectedDocuments = _documents
+          .where((doc) => doc["selected"])
+          .map((doc) => {
+                "name": doc["name"],
+                "copies": doc["copies"],
+                "remarks": doc["remarks"] ?? "",
+                "price": doc["price"]
+              })
+          .toList();
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data['success'] == true) {
-        return data['requests'] as List<dynamic>;
+      final body = {
+        "student_id": studentId,
+        "documents": selectedDocuments,
+        "purpose": _purposeController.text,
+        "contact_number": _contactNoController.text,
+        "last_sem_attended": _lastSemController.text,
+        "semester": _semesterController.text,
+        "date_graduated": _dateGraduatedController.text,
+        "total_amount": _totalPrice,
+      };
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/requests/updatemyrequest/${widget.request['_id']}'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode(body),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Request updated successfully')),
+          );
+          
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RequestSummaryScreen(
+                requestId: widget.request['_id'],
+                documentType: getSelectedDocumentNames(),
+                copies: getTotalCopies(),
+                totalAmount: _totalPrice,
+                token: widget.token,
+              ),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update: ${data['message']}')),
+          );
+        }
       } else {
-        throw Exception(data['message'] ?? 'Unknown server message');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${response.statusCode}')),
+        );
       }
-    } else {
-      throw Exception('Server error: ${response.statusCode}');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating request: $e')),
+      );
     }
   }
 
-  // -------------------------
-  // UI and Form Code
-  // -------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: Row(
         children: [
-          // Sidebar
+          // Sidebar (same as StudentRequestForm)
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             width: isCollapsed ? 80 : 250,
@@ -179,7 +257,6 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                     ),
                   ),
                 const SizedBox(height: 40),
-                // Navigation items
                 Expanded(
                   child: SingleChildScrollView(
                     child: Column(
@@ -247,7 +324,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                     ),
                     const SizedBox(height: 25),
                     const Text(
-                      "+ Request New Document",
+                      "Edit Request",
                       style: TextStyle(
                         fontFamily: 'Montserrat',
                         fontWeight: FontWeight.bold,
@@ -288,7 +365,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                         const SizedBox(width: 10),
                         if (_currentStep == 2)
                           ElevatedButton(
-                            onPressed: _submitRequest,
+                            onPressed: updateRequest,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.red[900],
                               padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
@@ -296,7 +373,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                                 borderRadius: BorderRadius.circular(25),
                               ),
                             ),
-                            child: const Text("Submit Request"),
+                            child: const Text("Update Request"),
                           ),
                         if (_currentStep == 1)
                           ElevatedButton(
@@ -326,124 +403,6 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
     );
   }
 
-  // -------------------------
-  // SUBMIT REQUEST FUNCTION
-  // -------------------------
-  void _submitRequest() async {
-    if (studentId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Student data not loaded. Try again.')));
-      return;
-    }
-    if (_documents.where((d) => d['selected']).isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select at least one document.')));
-      return;
-    }
-    if (_contactNoController.text.isEmpty || _lastSemController.text.isEmpty || _semesterController.text.isEmpty || _purposeController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fill all required fields.')));
-      return;
-    }
-
-    try {
-      final selectedDocuments = _documents
-          .where((doc) => doc["selected"])
-          .map((doc) => {
-                "name": doc["name"],
-                "copies": doc["copies"],
-                "remarks": doc["remarks"] ?? "",
-                "price": doc["price"]
-              })
-          .toList();
-
-      final body = {
-        "student_id": studentId,
-        "documents": selectedDocuments,
-        "purpose": _purposeController.text,
-        "contact_number": _contactNoController.text,
-        "last_sem_attended": _lastSemController.text,
-        "semester": _semesterController.text,
-        "date_graduated": _dateGraduatedController.text,
-        "total_amount": _totalPrice,
-      };
-
-      final url = Uri.parse("$baseUrl/requests/createrequest");
-
-      print("POST $url");
-      print("Request body: ${jsonEncode(body)}");
-
-      final response = await http.post(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer ${widget.token}",
-        },
-        body: jsonEncode(body),
-      );
-
-      print("Response code: ${response.statusCode}");
-      print("Response body: ${response.body}");
-
-      if (response.statusCode != 200 && response.statusCode != 201) {
-        throw Exception("Server returned status ${response.statusCode}");
-      }
-
-      final data = jsonDecode(response.body);
-
-      String? requestId;
-
-      if (data is Map && data["isAdded"] != null && data["isAdded"]["request"] != null) {
-        requestId = data["isAdded"]["request"]["_id"]?.toString();
-      }
-
-      if (requestId == null && data is Map && data["request"] != null) {
-        requestId = data["request"]["_id"]?.toString();
-      }
-
-      if (requestId == null && data is Map && data["data"] != null) {
-        requestId = data["data"]["id"]?.toString() ?? data["data"]["_id"]?.toString();
-      }
-
-      if (requestId == null) {
-        throw Exception("Invalid response from server: ${response.body}");
-      }
-
-      int totalCopies = _documents
-        .where((doc) => doc["selected"])
-        .fold(0, (sum, doc) => sum + (doc["copies"] as int));
-
-      final result = await Navigator.push(
-        context, 
-        MaterialPageRoute(
-          builder: (context) => RequestSummaryScreen(
-            requestId: requestId!,
-            documentType: getSelectedDocumentNames(),
-            copies: totalCopies,
-            totalAmount: _totalPrice,
-            token: widget.token,
-          )
-        )
-      );
-
-      if (result == true) {
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      print("ERROR: $e");
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text("Request Failed"),
-          content: SingleChildScrollView(child: Text("Something went wrong:\n$e")),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("OK"),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-
   Widget _buildNavItem(IconData icon, String label) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -458,7 +417,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => StudentRequestsHistoryScreen(token: widget.token),
+                builder: (context) => StudentAllRequestsScreen(token: widget.token),
               ),
             );
           } else {
@@ -621,6 +580,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                                   SizedBox(
                                     width: 70,
                                     child: TextField(
+                                      controller: TextEditingController(text: doc["copies"].toString()),
                                       keyboardType: TextInputType.number,
                                       onChanged: (value) {
                                         setState(() {
@@ -646,6 +606,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                             Padding(
                               padding: const EdgeInsets.only(left: 40, right: 20, bottom: 10),
                               child: TextField(
+                                controller: TextEditingController(text: doc["remarks"]),
                                 onChanged: (value) => doc["remarks"] = value,
                                 decoration: InputDecoration(
                                   hintText: "Remarks (optional)",
@@ -721,58 +682,6 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
           ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         ),
-      ),
-    );
-  }
-}
-
-// -------------------------
-// STUDENT REQUEST HISTORY SCREEN
-// -------------------------
-class StudentRequestsHistoryScreen extends StatelessWidget {
-  final String token;
-  const StudentRequestsHistoryScreen({super.key, required this.token});
-
-  Future<List<dynamic>> fetchMyRequests() async {
-    final url = Uri.parse('$baseUrl/requests/mine');
-    final response = await http.get(url, headers: {
-      'Authorization': 'Bearer $token',
-      'Content-Type': 'application/json',
-    });
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data['success']) return data['requests'];
-      throw Exception(data['message']);
-    } else {
-      throw Exception('Server error ${response.statusCode}');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("My Requests")),
-      body: FutureBuilder<List<dynamic>>(
-        future: fetchMyRequests(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-          if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-
-          final requests = snapshot.data!;
-          if (requests.isEmpty) return const Center(child: Text("No requests yet."));
-          return ListView.builder(
-            itemCount: requests.length,
-            itemBuilder: (context, index) {
-              final req = requests[index];
-              final docNames = (req['documents'] as List).map((d) => d['name']).join(", ");
-              return ListTile(
-                title: Text(docNames),
-                subtitle: Text("Status: ${req['status']}"),
-              );
-            },
-          );
-        },
       ),
     );
   }

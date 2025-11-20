@@ -326,14 +326,16 @@ Future<void> fetchRequests() async {
                     const SizedBox(height: 10),
 
                     ElevatedButton(
-                      onPressed: () {
-                        // 👇 NOW PASS TOKEN HERE
-                        Navigator.push(
+                      onPressed: () async {
+                        final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => StudentRequestForm(token: widget.token),
                           ),
                         );
+                        if (result == true) {
+                          fetchRequests();
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.grey[200],

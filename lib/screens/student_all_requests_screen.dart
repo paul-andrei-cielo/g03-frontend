@@ -3,7 +3,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'student_request_form.dart'; // Assuming this is for editing, or create a separate edit screen
+import 'student_request_form.dart';
+import 'edit_request_screen.dart';
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
@@ -344,33 +345,34 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
                                             Row(
                                               mainAxisAlignment: MainAxisAlignment.end,
                                               children: [
-                                                ElevatedButton(
-                                                  onPressed: () {
-                                                    // Navigate to edit screen (assume StudentRequestForm with pre-filled data or a separate edit screen)
-                                                    Navigator.push(
-                                                      context,
-                                                      MaterialPageRoute(
-                                                        builder: (context) => StudentRequestForm(token: widget.token), // Pass request data if editing
+                                                if (req['status'] == 'PENDING (Clearance)' || req['status'] == 'PENDING (Payment)') ... [
+                                                  ElevatedButton(
+                                                      onPressed: () {
+                                                        Navigator.push(
+                                                          context,
+                                                          MaterialPageRoute(
+                                                            builder: (context) => EditRequestScreen(token: widget.token, request: req),
+                                                          ),
+                                                        ).then((_) => fetchRequests());
+                                                      },
+                                                      style: ElevatedButton.styleFrom(
+                                                        backgroundColor: Colors.blue,
+                                                        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius: BorderRadius.circular(10),
+                                                        ),
                                                       ),
-                                                    );
-                                                  },
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: Colors.blue,
-                                                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius: BorderRadius.circular(10),
+                                                      child: const Text (
+                                                        "Edit",
+                                                        style: TextStyle(
+                                                          fontFamily: 'Montserrat',
+                                                          color: Colors.white,
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
                                                     ),
-                                                  ),
-                                                  child: const Text(
-                                                    "Edit",
-                                                    style: TextStyle(
-                                                      fontFamily: 'Montserrat',
-                                                      color: Colors.white,
-                                                      fontSize: 14,
-                                                    ),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 10),
+                                                    const SizedBox(width: 10),
+                                                ],
                                                 ElevatedButton(
                                                   onPressed: () {
                                                     showDialog(
