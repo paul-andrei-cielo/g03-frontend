@@ -28,7 +28,7 @@ class MyApp extends StatelessWidget {
         '/forgot_password': (context) => const ForgotPasswordScreen(),
         '/register': (context) => const RegisterScreen(),
         '/staff_register': (context) => const StaffRegisterScreen(),
-        '/registrar_dashboard': (context) => const RegistrarDashboard(),
+//        '/registrar_dashboard': (context) => const RegistrarDashboard(),
       },
     );
   }

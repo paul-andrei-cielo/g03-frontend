@@ -24,18 +24,23 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
   List<dynamic> requests = [];
   bool isLoading = true;
   String errorMessage = '';
+  String userId = '';
 
   @override
   void initState() {
     super.initState();
-    fetchUserData();
-    fetchRequests();
+    fetchUserData().then((_) => fetchRequests());
   }
 
   Future<void> fetchUserData() async {
     try {
       final payload = json.decode(utf8.decode(base64.decode(widget.token.split('.')[1])));
       final userId = payload['id'];
+
+      setState(() {
+        this.userId = userId;
+      });
+
       final response = await http.get(
         Uri.parse('$baseUrl/user/$userId'),
         headers: {
@@ -61,7 +66,7 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
   Future<void> fetchRequests() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/requests/mine'),
+        Uri.parse('$baseUrl/requests/$userId'),
         headers: {
           'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
@@ -78,7 +83,12 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
           setError('Failed to load requests: ${data['message'] ?? 'Invalid data'}');
         }
       } else {
-        setError('Failed to load requests: ${response.statusCode}');
+        try {
+          final errorData = json.decode(response.body);
+          setError('Failed to load requests: ${errorData['message'] ?? 'Status ${response.statusCode}'}');
+        } catch (e) {
+          setError('Failed to load requests: Status ${response.statusCode} - ${response.body}');
+        }
       }
     } catch (e) {
       setError('Error fetching requests: $e');

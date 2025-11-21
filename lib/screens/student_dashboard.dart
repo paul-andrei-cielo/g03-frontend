@@ -22,6 +22,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
   List<dynamic> requests = [];
   bool isLoading = true;
   String errorMessage = '';
+  String userId = '';  // Add this to store the decoded user ID
 
   @override
   void initState() {
@@ -30,88 +31,98 @@ class _StudentDashboardState extends State<StudentDashboard> {
     fetchRequests();
   }
 
-  // In fetchUserData()
-Future<void> fetchUserData() async {
-  try {
-    print('Fetching user data...');
-    final payload = json.decode(utf8.decode(base64.decode(widget.token.split('.')[1])));
-    final userId = payload['id'];
-    print('Decoded user ID: $userId');
+  // In fetchUserData() - Unchanged, but now sets userId
+  Future<void> fetchUserData() async {
+    try {
+      print('Fetching user data...');
+      final payload = json.decode(utf8.decode(base64.decode(widget.token.split('.')[1])));
+      final userId = payload['id'];
+      print('Decoded user ID: $userId');
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/user/$userId'),
-      headers: {
-        'Authorization': 'Bearer ${widget.token}',
-        'Content-Type': 'application/json',
-      },
-    );
+      setState(() {
+        this.userId = userId;  // Store userId for use in fetchRequests
+      });
 
-    print('Response status: ${response.statusCode}');
-    print('Response body: ${response.body}');
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/$userId'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      // Add null check for 'success'
-      if (data != null && data['success'] == true && data['user'] != null) {
-        final user = data['user'];
-        print('User data: $user');
-        setState(() {
-          studentName = '${user['first_name'] ?? 'Unknown'} ${user['last_name'] ?? ''}'.trim();  // Fallback if fields are null
-          studentNumber = user['student_number'] ?? 'Unknown';
-        });
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // Add null check for 'success'
+        if (data != null && data['success'] == true && data['user'] != null) {
+          final user = data['user'];
+          print('User data: $user');
+          setState(() {
+            studentName = '${user['first_name'] ?? 'Unknown'} ${user['last_name'] ?? ''}'.trim();  // Fallback if fields are null
+            studentNumber = user['student_number'] ?? 'Unknown';
+          });
+        } else {
+          print('User data fetch failed: success=${data['success']}, message=${data['message']}');
+          setError('Failed to load user data: ${data['message'] ?? 'Unknown error'}');
+        }
       } else {
-        print('User data fetch failed: success=${data['success']}, message=${data['message']}');
-        setError('Failed to load user data: ${data['message'] ?? 'Unknown error'}');
+        setError('Failed to load user data: ${response.statusCode}');
       }
-    } else {
-      setError('Failed to load user data: ${response.statusCode}');
+    } catch (e) {
+      print('Error in fetchUserData: $e');
+      setError('Error fetching user data: $e');
     }
-  } catch (e) {
-    print('Error in fetchUserData: $e');
-    setError('Error fetching user data: $e');
   }
-}
 
-// In fetchRequests()
-Future<void> fetchRequests() async {
-  try {
-    print('Fetching requests...');
-    final response = await http.get(
-      Uri.parse('$baseUrl/requests/mine'),  // Double-check this URL
-      headers: {
-        'Authorization': 'Bearer ${widget.token}',
-        'Content-Type': 'application/json',
-      },
-    );
+  // In fetchRequests() - Updated URL to use userId
+  Future<void> fetchRequests() async {
+    if (userId.isEmpty) {
+      // Wait for userId to be set from fetchUserData
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (userId.isEmpty) return;  // Safety check
+    }
 
-    print('Requests response status: ${response.statusCode}');
-    print('Requests response body: ${response.body}');
+    try {
+      print('Fetching requests for userId: $userId');
+      final response = await http.get(
+        Uri.parse('$baseUrl/requests/$userId'),  // Fixed: Use /requests/:id instead of /requests/mine
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      // Add null check for 'success' and 'requests'
-      if (data != null && data['success'] == true && data['requests'] is List) {
-        print('Requests data: ${data['requests']}');
-        setState(() {
-          requests = List<dynamic>.from(data['requests']);
-          isLoading = false;
-        });
+      print('Requests response status: ${response.statusCode}');
+      print('Requests response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // Add null check for 'success' and 'requests'
+        if (data != null && data['success'] == true && data['requests'] is List) {
+          print('Requests data: ${data['requests']}');
+          setState(() {
+            requests = List<dynamic>.from(data['requests']);
+            isLoading = false;
+          });
+        } else {
+          print('Requests fetch failed: success=${data['success']}, message=${data['message']}');
+          setError('Failed to load requests: ${data['message'] ?? 'Invalid data'}');
+        }
       } else {
-        print('Requests fetch failed: success=${data['success']}, message=${data['message']}');
-        setError('Failed to load requests: ${data['message'] ?? 'Invalid data'}');
+        setError('Failed to load requests: ${response.statusCode}');
       }
-    } else {
-      setError('Failed to load requests: ${response.statusCode}');
+    } catch (e) {
+      print('Error in fetchRequests: $e');
+      setError('Error fetching requests: $e');
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
     }
-  } catch (e) {
-    print('Error in fetchRequests: $e');
-    setError('Error fetching requests: $e');
-  } finally {
-    setState(() {
-      isLoading = false;
-    });
   }
-}
 
   void setError(String message) {
     setState(() {
@@ -173,7 +184,7 @@ Future<void> fetchRequests() async {
 
   @override
   Widget build(BuildContext context) {
-  final summary = getSummaryData();
+    final summary = getSummaryData();
 
     return Scaffold(
       backgroundColor: Colors.white,
