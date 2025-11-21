@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:registrar_app/screens/student_all_requests_screen.dart';
+import 'package:registrar_app/screens/student_dashboard.dart';
 import 'request_summary_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -453,12 +455,19 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
           if (label == "Logout") {
             Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
           } else if (label == "Dashboard") {
-            Navigator.pushReplacementNamed(context, '/student_dashboard', arguments: {'token': widget.token});
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentDashboard(token: widget.token),
+              ),
+            );
+          } else if (label == "Request") {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are already on the Request page')));
           } else if (label == "History") {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => StudentRequestsHistoryScreen(token: widget.token),
+                builder: (context) => StudentAllRequestsScreen(token: widget.token),
               ),
             );
           } else {

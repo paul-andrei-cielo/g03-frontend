@@ -431,7 +431,16 @@ Future<void> fetchRequests() async {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => StudentRequestForm(token: widget.token), // 👈 added token
+                builder: (context) => StudentRequestForm(token: widget.token),
+              ),
+            );
+          } else if (label == "Dashboard") {
+            fetchRequests();
+          } else if (label == "History") {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentAllRequestsScreen(token: widget.token),
               ),
             );
           } else {

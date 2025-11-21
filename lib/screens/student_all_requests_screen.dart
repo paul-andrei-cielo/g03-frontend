@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'student_request_form.dart';
 import 'edit_request_screen.dart';
+import 'student_dashboard.dart';
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
@@ -460,8 +461,6 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
         onTap: () {
           if (label == "Logout") {
             Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-          } else if (label == "Dashboard") {
-            Navigator.pushReplacementNamed(context, '/student_dashboard', arguments: {'token': widget.token});
           } else if (label == "Request") {
             Navigator.push(
               context,
@@ -469,6 +468,15 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
                 builder: (context) => StudentRequestForm(token: widget.token),
               ),
             );
+          } else if (label == "Dashboard") {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentDashboard(token: widget.token),
+              ),
+            );
+          } else if (label == "History") {
+            fetchRequests();
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('$label clicked')),
