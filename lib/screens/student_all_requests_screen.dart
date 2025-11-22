@@ -322,128 +322,172 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
                                         margin: const EdgeInsets.only(bottom: 15),
                                         padding: const EdgeInsets.all(15),
                                         decoration: BoxDecoration(
-                                          color: Colors.grey[200],
-                                          borderRadius: BorderRadius.circular(15),
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: Colors.grey.shade300),
                                         ),
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text(
-                                              "Request ID: $requestId",
-                                              style: const TextStyle(
-                                                fontFamily: 'Montserrat',
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 5),
-                                            Text(
-                                              "Documents: $docNames",
-                                              style: const TextStyle(
-                                                fontFamily: 'Montserrat',
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                            Text(
-                                              "Status: $status",
-                                              style: TextStyle(
-                                                fontFamily: 'Montserrat',
-                                                fontSize: 14,
-                                                color: req['status'] == 'PENDING (Payment)' ? Colors.orange : Colors.black,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 10),
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.end,
-                                              children: [
-                                                if (req['status'] == 'PENDING (Clearance)' || req['status'] == 'PENDING (Payment)') ... [
-                                                  ElevatedButton(
-                                                      onPressed: () {
-                                                        Navigator.push(
-                                                          context,
-                                                          MaterialPageRoute(
-                                                            builder: (context) => EditRequestScreen(token: widget.token, request: req),
-                                                          ),
-                                                        ).then((_) => fetchRequests());
-                                                      },
-                                                      style: ElevatedButton.styleFrom(
-                                                        backgroundColor: Colors.blue,
-                                                        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                                                        shape: RoundedRectangleBorder(
-                                                          borderRadius: BorderRadius.circular(10),
-                                                        ),
-                                                      ),
-                                                      child: const Text (
-                                                        "Edit",
-                                                        style: TextStyle(
-                                                          fontFamily: 'Montserrat',
-                                                          color: Colors.white,
-                                                          fontSize: 14,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 10),
+                                            // =============================
+                                            // ROW 1 — TABLE HEADERS
+                                            // =============================
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(vertical: 8),
+                                              child: Row(
+                                                children: const [
+                                                  Expanded(flex: 2,
+                                                      child: Text("Reference ID", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                  Expanded(flex: 2,
+                                                      child: Text("Document Type", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                  Expanded(flex: 2,
+                                                      child: Text("Date Requested", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                  Expanded(flex: 2,
+                                                      child: Text("Status", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                  Expanded(flex: 2,
+                                                      child: Text("Details", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                  Expanded(flex: 2,
+                                                      child: Text("Actions", style: TextStyle(fontWeight: FontWeight.bold))),
                                                 ],
-                                                ElevatedButton(
-                                                  onPressed: () {
-                                                    showDialog(
-                                                      context: context,
-                                                      builder: (context) => AlertDialog(
-                                                        title: const Text("Delete Request"),
-                                                        content: const Text("Are you sure you want to delete this request?"),
-                                                        actions: [
-                                                          TextButton(
-                                                            onPressed: () => Navigator.pop(context),
-                                                            child: const Text("Cancel"),
-                                                          ),
-                                                          TextButton(
-                                                            onPressed: () {
-                                                              Navigator.pop(context);
-                                                              deleteRequest(req['_id']);
-                                                            },
-                                                            child: const Text("Delete"),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                  },
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: Colors.red,
-                                                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius: BorderRadius.circular(10),
-                                                    ),
+                                              ),
+                                            ),
+
+                                            const Divider(),
+
+                                            // =============================
+                                            // ROW 2 — ROW DATA
+                                            // =============================
+                                            Row(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                // Reference ID
+                                                Expanded(
+                                                  flex: 2,
+                                                  child: Text(
+                                                    requestId,
+                                                    style: const TextStyle(fontSize: 13),
                                                   ),
-                                                  child: const Text(
-                                                    "Delete",
+                                                ),
+
+                                                // Document Type
+                                                Expanded(
+                                                  flex: 2,
+                                                  child: Text(
+                                                    docNames,
+                                                    style: const TextStyle(fontSize: 13),
+                                                  ),
+                                                ),
+
+                                                // Date Requested
+                                                Expanded(
+                                                  flex: 2,
+                                                  child: Text(
+                                                    req['createdAt'] ?? "Unknown",
+                                                    style: const TextStyle(fontSize: 13),
+                                                  ),
+                                                ),
+
+                                                // Status
+                                                Expanded(
+                                                  flex: 2,
+                                                  child: Text(
+                                                    status,
                                                     style: TextStyle(
-                                                      fontFamily: 'Montserrat',
-                                                      color: Colors.white,
-                                                      fontSize: 14,
+                                                      fontSize: 13,
+                                                      color: status == "PENDING (Payment)" ? Colors.orange : Colors.black,
                                                     ),
                                                   ),
                                                 ),
-                                                if (req['status'] == 'PENDING (Payment)') ...[
-                                                  const SizedBox(width: 10),
-                                                  ElevatedButton(
-                                                    onPressed: () => uploadProofOfPayment(req['_id']),
-                                                    style: ElevatedButton.styleFrom(
-                                                      backgroundColor: Colors.green,
-                                                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                                                      shape: RoundedRectangleBorder(
-                                                        borderRadius: BorderRadius.circular(10),
-                                                      ),
-                                                    ),
-                                                    child: const Text(
-                                                      "Upload Proof",
-                                                      style: TextStyle(
-                                                        fontFamily: 'Montserrat',
-                                                        color: Colors.white,
-                                                        fontSize: 14,
-                                                      ),
-                                                    ),
+
+                                                // Status Details
+                                                Expanded(
+                                                  flex: 2,
+                                                  child: Text(
+                                                    req['status_details'] ?? "—",
+                                                    style: const TextStyle(fontSize: 13),
                                                   ),
-                                                ],
+                                                ),
+
+                                                // ACTION BUTTONS
+                                                Expanded(
+                                                  flex: 2,
+                                                  child: Row(
+                                                    children: [
+                                                      // EDIT
+                                                      if (status == 'PENDING (Clearance)' || status == 'PENDING (Payment)')
+                                                        SizedBox(
+                                                          height: 32,
+                                                          child: ElevatedButton(
+                                                            onPressed: () {
+                                                              Navigator.push(
+                                                                context,
+                                                                MaterialPageRoute(
+                                                                  builder: (context) =>
+                                                                      EditRequestScreen(token: widget.token, request: req),
+                                                                ),
+                                                              ).then((_) => fetchRequests());
+                                                            },
+                                                            style: ElevatedButton.styleFrom(
+                                                              backgroundColor: Colors.blue,
+                                                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                                                            ),
+                                                            child: const Text("Edit", style: TextStyle(fontSize: 12)),
+                                                          ),
+                                                        ),
+
+                                                      const SizedBox(width: 6),
+
+                                                      // DELETE
+                                                      SizedBox(
+                                                        height: 32,
+                                                        child: ElevatedButton(
+                                                          onPressed: () {
+                                                            showDialog(
+                                                              context: context,
+                                                              builder: (_) => AlertDialog(
+                                                                title: const Text("Delete Request"),
+                                                                content: const Text("Are you sure you want to delete this request?"),
+                                                                actions: [
+                                                                  TextButton(
+                                                                    onPressed: () => Navigator.pop(context),
+                                                                    child: const Text("Cancel"),
+                                                                  ),
+                                                                  TextButton(
+                                                                    onPressed: () {
+                                                                      Navigator.pop(context);
+                                                                      deleteRequest(requestId);
+                                                                    },
+                                                                    child: const Text("Delete"),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            );
+                                                          },
+                                                          style: ElevatedButton.styleFrom(
+                                                            backgroundColor: Colors.red,
+                                                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                                                          ),
+                                                          child: const Text("Delete", style: TextStyle(fontSize: 12)),
+                                                        ),
+                                                      ),
+
+                                                      if (status == 'PENDING (Payment)') ...[
+                                                        const SizedBox(width: 6),
+                                                        SizedBox(
+                                                          height: 32,
+                                                          child: ElevatedButton(
+                                                            onPressed: () => uploadProofOfPayment(requestId),
+                                                            style: ElevatedButton.styleFrom(
+                                                              backgroundColor: Colors.green,
+                                                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                            ),
+                                                            child: const Text("Upload", style: TextStyle(fontSize: 12)),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ],
+                                                  ),
+                                                ),
                                               ],
                                             ),
                                           ],
