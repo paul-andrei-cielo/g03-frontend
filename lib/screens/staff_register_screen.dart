@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class StaffRegisterScreen extends StatefulWidget {
   const StaffRegisterScreen({super.key});
@@ -7,10 +9,10 @@ class StaffRegisterScreen extends StatefulWidget {
   State<StaffRegisterScreen> createState() => _StaffRegisterScreenState();
 }
 
-/// 🧾 Custom Plain Input Field Builder
 Widget _buildPlainInputField({
   required TextEditingController controller,
   required String hint,
+  bool isRequired = true,
 }) {
   return TextFormField(
     controller: controller,
@@ -30,7 +32,7 @@ Widget _buildPlainInputField({
       ),
     ),
     validator: (value) {
-      if (value == null || value.isEmpty) {
+      if (isRequired && (value == null || value.isEmpty)) {
         return 'Please enter your ${hint.toLowerCase()}';
       }
       return null;
@@ -44,9 +46,12 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
   final _lastNameController = TextEditingController();
   final _firstNameController = TextEditingController();
   final _middleNameController = TextEditingController();
+  final _extensionsController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
+  bool _isLoading = false; // For showing a loading indicator
 
   @override
   void dispose() {
@@ -54,18 +59,65 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
     _lastNameController.dispose();
     _firstNameController.dispose();
     _middleNameController.dispose();
+    _extensionsController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  void _register() {
-    if (_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Staff account created successfully!')),
+  void _register() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true); // Show loading
+
+    final employeeNumber = _employeeIdController.text.trim();
+    final firstName = _firstNameController.text.trim();
+    final middleName = _middleNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
+    final extensions = _extensionsController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    final String baseUrl = 'https://g03-backend.onrender.com';
+    final String endpoint = '$baseUrl/user/staffregistration';
+
+    final Map<String, dynamic> body = {
+      "employee_number": employeeNumber,
+      "first_name": firstName,
+      "middle_name": middleName.isEmpty ? null : middleName,
+      "last_name": lastName,
+      "extensions": extensions.isEmpty ? null : extensions,
+      "email": email,
+      "password": password,
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(body),
       );
-      Navigator.pushNamed(context, '/registrar_dashboard');
+
+      final data = jsonDecode(response.body);
+      final isAdded = data['isAdded'];
+
+      if (response.statusCode == 200 && isAdded != null && isAdded['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Staff account created successfully!')),
+        );
+        Navigator.pushNamed(context, '/registrar_dashboard');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isAdded?['message'] ?? "Registration failed")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    } finally {
+      setState(() => _isLoading = false); // Hide loading
     }
   }
 
@@ -144,20 +196,28 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                       ),
                       const SizedBox(height: 10),
 
-                      // First, Middle, Last Name (one column each, no icons)
                       _buildPlainInputField(
                         controller: _firstNameController,
                         hint: "FIRST NAME",
+                        isRequired: true,
                       ),
                       const SizedBox(height: 15),
                       _buildPlainInputField(
                         controller: _middleNameController,
                         hint: "MIDDLE NAME",
+                        isRequired: false,
                       ),
                       const SizedBox(height: 15),
                       _buildPlainInputField(
                         controller: _lastNameController,
                         hint: "LAST NAME",
+                        isRequired: true,
+                      ),
+                      const SizedBox(height: 20),
+                      _buildPlainInputField( 
+                        controller: _extensionsController,
+                        hint: "EXTENSIONS",
+                        isRequired: false,
                       ),
                       const SizedBox(height: 20),
 
@@ -187,25 +247,27 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
                       ),
                       const SizedBox(height: 30),
 
-                      // Register Button
-                      ElevatedButton(
-                        onPressed: _register,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red[700],
-                          minimumSize: const Size(double.infinity, 50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                        ),
-                        child: const Text(
-                          "REGISTER",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+                      // Register Button with Loading
+                      _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : ElevatedButton(
+                              onPressed: _register,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red[700],
+                                minimumSize: const Size(double.infinity, 50),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                              ),
+                              child: const Text(
+                                "REGISTER",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
                       const SizedBox(height: 20),
 
                       // Back to Login
@@ -264,7 +326,8 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         ),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+        contentPadding:
+            const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(30),
           borderSide: BorderSide.none,

@@ -15,6 +15,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _firstNameController = TextEditingController();
   final _middleNameController = TextEditingController();
   final _lastNameController = TextEditingController();
+  final _extensionsController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -44,6 +45,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _firstNameController.dispose();
     _middleNameController.dispose();
     _lastNameController.dispose();
+    _extensionsController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -62,16 +64,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _register() async {
-    // Trim all input fields
     final studentNumber = _studentNumberController.text.trim();
     final firstName = _firstNameController.text.trim();
     final middleName = _middleNameController.text.trim();
     final lastName = _lastNameController.text.trim();
+    final extensions = _extensionsController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    // Validate form
     if (!_formKey.currentState!.validate()) return;
 
     if (studentNumber.isEmpty) {
@@ -107,7 +108,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       "first_name": firstName,
       "middle_name": middleName,
       "last_name": lastName,
-      "extensions": "",
+      "extensions": extensions,
       "email": email,
       "password": password,
       "program": _selectedProgram,
@@ -230,16 +231,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       _buildPlainInputField(
                         controller: _firstNameController,
                         hint: "FIRST NAME",
+                        isRequired: true,
                       ),
                       const SizedBox(height: 15),
                       _buildPlainInputField(
                         controller: _middleNameController,
                         hint: "MIDDLE NAME",
+                        isRequired: false,
                       ),
                       const SizedBox(height: 15),
                       _buildPlainInputField(
                         controller: _lastNameController,
                         hint: "LAST NAME",
+                        isRequired: true,
+                      ),
+                      const SizedBox(height: 20),
+                      _buildPlainInputField(
+                        controller: _extensionsController,
+                        hint: "EXTENSIONS",
+                        isRequired: false,
                       ),
                       const SizedBox(height: 20),
 
@@ -432,6 +442,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildPlainInputField({
     required TextEditingController controller,
     required String hint,
+    bool isRequired = true,
   }) {
     return TextFormField(
       controller: controller,
@@ -444,7 +455,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
       ),
-      validator: (value) => value!.trim().isEmpty ? 'Please enter your ${hint.toLowerCase()}' : null,
+      validator: (value) => isRequired && value!.trim().isEmpty ? 'Please enter your ${hint.toLowerCase()}' : null,
     );
   }
 
