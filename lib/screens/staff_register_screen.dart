@@ -106,7 +106,7 @@ class _StaffRegisterScreenState extends State<StaffRegisterScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Staff account created successfully!')),
         );
-        Navigator.pushNamed(context, '/registrar_dashboard');
+        Navigator.pushNamed(context, '/login', arguments: {'loginType': 'Employee'});
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(isAdded?['message'] ?? "Registration failed")),

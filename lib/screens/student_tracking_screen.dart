@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'student_request_form.dart';
+import 'student_all_requests_screen.dart';
+import 'dart:convert';  // Added for json, utf8, base64
+import 'package:http/http.dart' as http;  // Added for http
+
+const baseUrl = 'https://g03-backend.onrender.com';
 
 class StudentTrackingScreen extends StatefulWidget {
   final String token;
@@ -17,44 +24,258 @@ class StudentTrackingScreen extends StatefulWidget {
 class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
   bool isCollapsed = false;
 
+  String studentName = "Loading...";
+  String studentNumber = "Loading...";
+  String userId = '';
+
+  @override
+  void initState() {
+    super.initState();
+    fetchUserData();
+  }
+
+  Future<void> fetchUserData() async {
+    try {
+      print('Fetching user data...');
+      final payload = json.decode(utf8.decode(base64.decode(widget.token.split('.')[1])));
+      final userId = payload['id'];
+      print('Decoded user ID: $userId');
+
+      setState(() {
+        this.userId = userId;
+      });
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/$userId'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null && data['success'] == true && data['user'] != null) {
+          final user = data['user'];
+          print('User data: $user');
+          setState(() {
+            studentName = '${user['first_name'] ?? 'Unknown'} ${user['last_name'] ?? ''}'.trim();
+            studentNumber = user['student_number'] ?? 'Unknown';
+          });
+        } else {
+          print('User data fetch failed: success=${data['success']}, message=${data['message']}');
+          setError('Failed to load user data: ${data['message'] ?? 'Unknown error'}');
+        }
+      } else {
+        setError('Failed to load user data: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error in fetchUserData: $e');
+      setError('Error fetching user data: $e');
+    }
+  }
+
+  void setError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   // ────────────────────────────────────────────────
-  // TEMPORARY MOCK TIMELINE DATA (replace with backend later)
+  // STATUS METADATA (constant, based on your hardcoded data)
   // ────────────────────────────────────────────────
-  List<Map<String, dynamic>> timeline = [
-    {
-      "status": "For Clearance",
-      "details": "Clearance verification is ongoing.",
-      "timestamp": "11/05/2025\n10:45:11",
-      "color": Color(0xFFF4C542),
+  static const Map<String, Map<String, dynamic>> statusMetadata = {
+    'FOR CLEARANCE': {
+      'details': 'Clearance verification is ongoing.',
+      'color': Color(0xFFF4C542),
+      'upload': false,
     },
-    {
-      "status": "For Payment",
-      "details": "Your clearance has been verified. Please upload your proof of payment.",
-      "timestamp": "11/06/2025\n9:40:23",
-      "color": Color(0xFFF28C28),
-      "upload": true
+    'FOR PAYMENT': {
+      'details': 'Your clearance has been verified. Please upload your proof of payment.',
+      'color': Color(0xFFF28C28),
+      'upload': true,
     },
-    {
-      "status": "Preparing",
-      "details": "Your proof of payment has been verified. Please stand by while your document is being prepared.",
-      "timestamp": "11/06/2025\n9:40:23",
-      "color": Color(0xFF3A82F7),
+    'PROCESSING': {
+      'details': 'Your proof of payment has been verified. Please stand by while your document is being prepared.',
+      'color': Color(0xFF3A82F7),
+      'upload': false,
     },
-    {
-      "status": "For Pickup",
-      "details": "Your document is ready to be picked up. You may claim it at the registrar’s office.\nImportant: Please bring your student ID for RFID authentication.",
-      "timestamp": "11/10/2025\n11:40:14",
-      "color": Color(0xFF8A4FFF),
+    'FOR PICKUP': {
+      'details': 'Your document is ready to be picked up. You may claim it at the registrar’s office.\nImportant: Please bring your student ID for RFID authentication.',
+      'color': Color(0xFF8A4FFF),
+      'upload': false,
     },
-    {
-      "status": "Claimed",
-      "details": "You have successfully claimed your document. Thank you.",
-      "timestamp": "11/11/2025\n12:45:11",
-      "color": Color(0xFF4CAF50),
+    'CLAIMED': {
+      'details': 'You have successfully claimed your document. Thank you.',
+      'color': Color(0xFF4CAF50),
+      'upload': false,
     },
+    'CANCELLED': {
+      'details': 'This request has been cancelled.',
+      'color': Colors.grey,
+      'upload': false,
+    },
+    'REJECTED': {
+      'details': 'This request has been rejected. Please check the remarks for more details.',
+      'color': Colors.red,
+      'upload': false,
+    },
+  };
+
+  // ────────────────────────────────────────────────
+  // STATUS ORDER (for progression)
+  // ────────────────────────────────────────────────
+  static const List<String> statusOrder = [
+    'FOR CLEARANCE',
+    'FOR PAYMENT',
+    'PROCESSING',
+    'FOR PICKUP',
+    'CLAIMED',
   ];
 
-  // Cancel Request Dialog
+  // ────────────────────────────────────────────────
+  // BUILD DYNAMIC TIMELINE BASED ON REQUEST STATUS
+  // ────────────────────────────────────────────────
+  List<Map<String, dynamic>> _buildTimeline() {
+    final currentStatus = widget.request['status']?.toUpperCase() ?? 'FOR CLEARANCE';
+    final requestDate = widget.request['request_date']; // Assuming this is a DateTime or ISO string
+
+    List<Map<String, dynamic>> timeline = [];
+
+    // If status is CANCELLED or REJECTED, show progression up to the last valid status, then add the special status
+    if (currentStatus == 'CANCELLED' || currentStatus == 'REJECTED') {
+      final lastValidIndex = statusOrder.length - 1; // Assume CLAIMED is the last before special
+      for (int i = 0; i <= lastValidIndex; i++) {
+        final status = statusOrder[i];
+        final meta = statusMetadata[status]!;
+        timeline.add({
+          'status': _formatStatus(status),
+          'details': meta['details'],
+          'timestamp': _getTimestamp(i, requestDate),
+          'color': meta['color'],
+          'upload': meta['upload'],
+        });
+      }
+      // Add the special status
+      final meta = statusMetadata[currentStatus]!;
+      timeline.add({
+        'status': _formatStatus(currentStatus),
+        'details': meta['details'],
+        'timestamp': DateFormat('MM/dd/yyyy\nHH:mm:ss').format(DateTime.now()), // Use current time for cancellation/rejection
+        'color': meta['color'],
+        'upload': meta['upload'],
+      });
+    } else {
+      // Normal progression: Show statuses up to the current one
+      final currentIndex = statusOrder.indexOf(currentStatus);
+      if (currentIndex == -1) {
+        // Fallback: Show only FOR CLEARANCE if status is invalid
+        final status = statusOrder[0];
+        final meta = statusMetadata[status]!;
+        timeline.add({
+          'status': _formatStatus(status),
+          'details': meta['details'],
+          'timestamp': _getTimestamp(0, requestDate),
+          'color': meta['color'],
+          'upload': meta['upload'],
+        });
+      } else {
+        for (int i = 0; i <= currentIndex; i++) {
+          final status = statusOrder[i];
+          final meta = statusMetadata[status]!;
+          timeline.add({
+            'status': _formatStatus(status),
+            'details': meta['details'],
+            'timestamp': _getTimestamp(i, requestDate),
+            'color': meta['color'],
+            'upload': meta['upload'],
+          });
+        }
+      }
+    }
+
+    return timeline;
+  }
+
+  // Helper: Format status to title case (e.g., "FOR CLEARANCE" -> "For Clearance")
+  String _formatStatus(String status) {
+    return status.split(' ').map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase()).join(' ');
+  }
+
+  // Helper: Get timestamp for a status index
+  String _getTimestamp(int index, dynamic requestDate) {
+    if (index == 0 && requestDate != null) {
+      // For the first status, use request_date
+      final date = requestDate is DateTime ? requestDate : DateTime.parse(requestDate);
+      return DateFormat('MM/dd/yyyy\nHH:mm:ss').format(date);
+    }
+    // For others, use a placeholder (since no real timestamps exist)
+    return 'Pending'; // Or use DateTime.now() if you want current time
+  }
+
+  Widget _buildNavItem(IconData icon, String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(15),
+        onTap: () {
+          if (label == "Logout") {
+            Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+          } else if (label == "Request") {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentRequestForm(token: widget.token),
+              ),
+            );
+          } else if (label == "Dashboard") {
+            Navigator.pop(context); // Assuming dashboard is the previous screen
+          } else if (label == "History") {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentAllRequestsScreen(token: widget.token),
+              ),
+            );
+          } else if (label == "Tracking") {
+            // Already on tracking, maybe do nothing or refresh
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Already on Tracking')),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('$label clicked')),
+            );
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.white, size: 26),
+              if (!isCollapsed) ...[
+                const SizedBox(width: 15),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontFamily: 'Montserrat',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Cancel Request Dialog (unchanged)
   void _cancelRequest() {
     showDialog(
       context: context,
@@ -82,15 +303,19 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final reference = widget.request['reference'] ?? "#68ebba15";
-    final document = widget.request['document'] ?? "Honorable Dismissal";
+    final reference = widget.request['reference_id'] ?? "#68ebba15"; // Updated to match model
+    final document = widget.request['documents'] != null && (widget.request['documents'] as List).isNotEmpty
+        ? (widget.request['documents'][0]['name'] ?? "Document") // Assume first document
+        : "Document";
+
+    final timeline = _buildTimeline(); // Dynamically build timeline
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: Row(
         children: [
           // ───────────────────────────────────────────────
-          // SIDEBAR — MATCHED FROM DASHBOARD
+          // SIDEBAR — MATCHED FROM DASHBOARD (unchanged)
           // ───────────────────────────────────────────────
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
@@ -114,8 +339,8 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      const Text(
-                        "Student Name",
+                      Text(
+                        studentName,
                         style: TextStyle(
                           color: Colors.white,
                           fontFamily: 'Montserrat',
@@ -124,8 +349,8 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      const Text(
-                        "202301299",
+                      Text(
+                        studentNumber,
                         style: TextStyle(
                           color: Colors.white70,
                           fontFamily: 'Montserrat',
@@ -146,25 +371,25 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
                 Expanded(
                   child: SingleChildScrollView(
                     child: Column(
-                      children: const [
-                        _SidebarItem(Icons.home, "Dashboard"),
-                        _SidebarItem(Icons.article, "Request"),
-                        _SidebarItem(Icons.search, "Tracking"),
-                        _SidebarItem(Icons.history, "History"),
-                        _SidebarItem(Icons.person, "Profile"),
-                        _SidebarItem(Icons.help, "Help"),
+                      children: [
+                        _buildNavItem(Icons.home, "Dashboard"),
+                        _buildNavItem(Icons.article, "Request"),
+                        _buildNavItem(Icons.search, "Tracking"),
+                        _buildNavItem(Icons.history, "History"),
+                        _buildNavItem(Icons.person, "Profile"),
+                        _buildNavItem(Icons.help, "Help"),
                       ],
                     ),
                   ),
                 ),
-                const _SidebarItem(Icons.logout, "Logout"),
+                _buildNavItem(Icons.logout, "Logout"),  // Removed 'const'
                 const SizedBox(height: 20),
               ],
             ),
           ),
 
           // ───────────────────────────────────────────────
-          // MAIN CONTENT
+          // MAIN CONTENT (updated to use dynamic timeline)
           // ───────────────────────────────────────────────
           Expanded(
             child: SafeArea(
@@ -173,7 +398,7 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // HEADER
+                    // HEADER (unchanged)
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -190,8 +415,8 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
                               },
                             ),
                             const SizedBox(width: 10),
-                            const Text(
-                              "Hello, Jereeza Mae!",
+                            Text(
+                              "Hello, ${studentName.split(' ').first}!",
                               style: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontWeight: FontWeight.bold,
@@ -209,7 +434,7 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
 
                     const SizedBox(height: 20),
 
-                    // REFERENCE TITLE + CANCEL BUTTON
+                    // REFERENCE TITLE + CANCEL BUTTON (unchanged)
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -363,38 +588,6 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SidebarItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _SidebarItem(this.icon, this.label);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.white, size: 26),
-            const SizedBox(width: 15),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontFamily: 'Montserrat',
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

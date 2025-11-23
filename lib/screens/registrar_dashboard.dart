@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 class RegistrarDashboard extends StatefulWidget {
-  const RegistrarDashboard({super.key});
+  const RegistrarDashboard({super.key, required this.token});
+
+  final String token;
 
   @override
   State<RegistrarDashboard> createState() => _RegistrarDashboardState();
@@ -275,6 +277,11 @@ class _RegistrarDashboardState extends State<RegistrarDashboard> {
         ],
       ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
   }
 
   Widget _buildNavItem(IconData icon, String label) {

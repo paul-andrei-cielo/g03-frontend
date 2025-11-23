@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:registrar_app/screens/registrar_dashboard.dart';
 import 'student_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -15,7 +16,26 @@ class _LoginScreenState extends State<LoginScreen> {
   final _idController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  String _loginType = 'Student'; // Default login type
+  String _loginType = 'Student';
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args != null && args['loginType'] == 'Employee') {
+        _loginType = 'Employee';
+      }
+
+      _initialized = true;
+    }
+  }
 
   @override
   void dispose() {
@@ -66,7 +86,12 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       } else {
-        Navigator.pushReplacementNamed(context, '/registrar_dashboard');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RegistrarDashboard(token: token),
+          )
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

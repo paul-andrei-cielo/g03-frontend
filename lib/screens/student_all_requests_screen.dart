@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'dart:io';
 import 'student_request_form.dart';
 import 'edit_request_screen.dart';
 import 'student_dashboard.dart';
+import 'student_tracking_screen.dart'; // Add this import
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
@@ -126,7 +128,8 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
           const SnackBar(content: Text('Request deleted successfully')),
         );
       } else {
-        setError('Failed to delete request');
+        final errorData = json.decode(response.body);
+        setError(errorData['message'] ?? 'Failed to delete request');
       }
     } catch (e) {
       setError('Error deleting request: $e');
@@ -151,6 +154,29 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
       } else {
         setError('Failed to upload proof');
       }
+    }
+  }
+
+  Future<void> cancelRequest(String requestId) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/requests/updatemyrequest/$requestId'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'status': 'CANCELLED'}),
+      );
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Request canceled successfully')),
+        );
+        fetchRequests();
+      } else {
+        setError('Failed to cancel request');
+      }
+    } catch (e) {
+      setError('Error canceling request: $e');
     }
   }
 
@@ -317,180 +343,230 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
                                       final req = activeRequests[index];
                                       final docNames = (req['documents'] as List?)?.map((d) => d['name'] as String? ?? 'Unknown').join(", ") ?? "No documents";
                                       final status = req['status'] ?? 'Unknown';
-                                      final requestId = req['_id'] ?? '';
-                                      return Container(
-                                        margin: const EdgeInsets.only(bottom: 15),
-                                        padding: const EdgeInsets.all(15),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: Colors.grey.shade300),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            // =============================
-                                            // ROW 1 — TABLE HEADERS
-                                            // =============================
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(vertical: 8),
-                                              child: Row(
-                                                children: const [
-                                                  Expanded(flex: 2,
-                                                      child: Text("Reference ID", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                  Expanded(flex: 2,
-                                                      child: Text("Document Type", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                  Expanded(flex: 2,
-                                                      child: Text("Date Requested", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                  Expanded(flex: 2,
-                                                      child: Text("Status", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                  Expanded(flex: 2,
-                                                      child: Text("Details", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                  Expanded(flex: 2,
-                                                      child: Text("Actions", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                ],
-                                              ),
+                                      final requestId = req['reference_id'] ?? '';
+                                      final internalId = req['_id'] ?? '';
+                                      return GestureDetector( // Wrap the Container with GestureDetector to make the row clickable
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => StudentTrackingScreen(token: widget.token, request: req), // Navigate to StudentTrackingScreen with token and request
                                             ),
-
-                                            const Divider(),
-
-                                            // =============================
-                                            // ROW 2 — ROW DATA
-                                            // =============================
-                                            Row(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                // Reference ID
-                                                Expanded(
-                                                  flex: 2,
-                                                  child: Text(
-                                                    requestId,
-                                                    style: const TextStyle(fontSize: 13),
-                                                  ),
+                                          );
+                                        },
+                                        child: Container(
+                                          margin: const EdgeInsets.only(bottom: 15),
+                                          padding: const EdgeInsets.all(15),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: Colors.grey.shade300),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              // =============================
+                                              // ROW 1 — TABLE HEADERS
+                                              // =============================
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                                child: Row(
+                                                  children: const [
+                                                    Expanded(flex: 2,
+                                                        child: Text("Reference ID", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                    Expanded(flex: 2,
+                                                        child: Text("Document Type", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                    Expanded(flex: 2,
+                                                        child: Text("Date Requested", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                    Expanded(flex: 2,
+                                                        child: Text("Status", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                    Expanded(flex: 2,
+                                                        child: Text("Details", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                    Expanded(flex: 2,
+                                                        child: Text("Actions", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                  ],
                                                 ),
+                                              ),
 
-                                                // Document Type
-                                                Expanded(
-                                                  flex: 2,
-                                                  child: Text(
-                                                    docNames,
-                                                    style: const TextStyle(fontSize: 13),
-                                                  ),
-                                                ),
+                                              const Divider(),
 
-                                                // Date Requested
-                                                Expanded(
-                                                  flex: 2,
-                                                  child: Text(
-                                                    req['createdAt'] ?? "Unknown",
-                                                    style: const TextStyle(fontSize: 13),
-                                                  ),
-                                                ),
-
-                                                // Status
-                                                Expanded(
-                                                  flex: 2,
-                                                  child: Text(
-                                                    status,
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: status == "PENDING (Payment)" ? Colors.orange : Colors.black,
+                                              // =============================
+                                              // ROW 2 — ROW DATA
+                                              // =============================
+                                              Row(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  // Reference ID
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Text(
+                                                      requestId,
+                                                      style: const TextStyle(fontSize: 13),
                                                     ),
                                                   ),
-                                                ),
 
-                                                // Status Details
-                                                Expanded(
-                                                  flex: 2,
-                                                  child: Text(
-                                                    req['status_details'] ?? "—",
-                                                    style: const TextStyle(fontSize: 13),
+                                                  // Document Type
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Text(
+                                                      docNames,
+                                                      style: const TextStyle(fontSize: 13),
+                                                    ),
                                                   ),
-                                                ),
 
-                                                // ACTION BUTTONS
-                                                Expanded(
-                                                  flex: 2,
-                                                  child: Row(
-                                                    children: [
-                                                      // EDIT
-                                                      if (status == 'PENDING (Clearance)' || status == 'PENDING (Payment)')
+                                                  // Date Requested
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Text(
+                                                      req['request_date'] != null
+                                                        ? DateFormat('MMM d, yyyy').format(DateTime.parse(req['request_date']))
+                                                        : "Unknown",
+                                                      style: const TextStyle(fontSize: 13),
+                                                    ),
+                                                  ),
+
+                                                  // Status
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Text(
+                                                      status,
+                                                      style: TextStyle(
+                                                        fontSize: 13,
+                                                        color: status == "PENDING (Payment)" ? Colors.orange : Colors.black,
+                                                      ),
+                                                    ),
+                                                  ),
+
+                                                  // Status Details
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Text(
+                                                      req['status_details'] ?? "—",
+                                                      style: const TextStyle(fontSize: 13),
+                                                    ),
+                                                  ),
+
+                                                  // ACTION BUTTONS
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Row(
+                                                      children: [
+                                                        // EDIT
+                                                        if (status == 'FOR CLEARANCE' || status == 'FOR PAYMENT')
+                                                          SizedBox(
+                                                            height: 32,
+                                                            child: ElevatedButton(
+                                                              onPressed: () {
+                                                                Navigator.push(
+                                                                  context,
+                                                                  MaterialPageRoute(
+                                                                    builder: (context) =>
+                                                                        EditRequestScreen(token: widget.token, request: req),
+                                                                  ),
+                                                                ).then((_) => fetchRequests());
+                                                              },
+                                                              style: ElevatedButton.styleFrom(
+                                                                backgroundColor: Colors.blue,
+                                                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                                              ),
+                                                              child: const Text("Edit", style: TextStyle(fontSize: 12)),
+                                                            ),
+                                                          ),
+
+                                                        const SizedBox(width: 6),
+
+                                                        // CANCEL
+                                                        if (status == 'FOR CLEARANCE' || status == 'FOR PAYMENT')
+                                                          SizedBox(
+                                                            height: 32,
+                                                            child: ElevatedButton(
+                                                              onPressed: () {
+                                                                showDialog(
+                                                                  context: context,
+                                                                  builder: (_) => AlertDialog(
+                                                                    title: const Text("Cancel Request"),
+                                                                    content: const Text("Are you sure you want to cancel this request? This action cannot be undone."),
+                                                                    actions: [
+                                                                      TextButton(
+                                                                        onPressed: () => Navigator.pop(context),
+                                                                        child: const Text("No"),
+                                                                      ),
+                                                                      TextButton(
+                                                                        onPressed: () {
+                                                                          Navigator.pop(context);
+                                                                          cancelRequest(internalId);
+                                                                        },
+                                                                        child: const Text("Yes, Cancel"),
+                                                                      ),
+                                                                    ],
+                                                                  ),
+                                                                );
+                                                              },
+                                                              style: ElevatedButton.styleFrom(
+                                                                backgroundColor: Colors.orange,  // Distinct color for cancel
+                                                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                                              ),
+                                                              child: const Text("Cancel", style: TextStyle(fontSize: 12)),
+                                                            ),
+                                                          ),
+
+                                                        const SizedBox(width: 6),
+
+                                                        // DELETE
                                                         SizedBox(
                                                           height: 32,
                                                           child: ElevatedButton(
                                                             onPressed: () {
-                                                              Navigator.push(
-                                                                context,
-                                                                MaterialPageRoute(
-                                                                  builder: (context) =>
-                                                                      EditRequestScreen(token: widget.token, request: req),
+                                                              showDialog(
+                                                                context: context,
+                                                                builder: (_) => AlertDialog(
+                                                                  title: const Text("Delete Request"),
+                                                                  content: const Text("Are you sure you want to delete this request?"),
+                                                                  actions: [
+                                                                    TextButton(
+                                                                      onPressed: () => Navigator.pop(context),
+                                                                      child: const Text("Cancel"),
+                                                                    ),
+                                                                    TextButton(
+                                                                      onPressed: () {
+                                                                        Navigator.pop(context);
+                                                                        deleteRequest(internalId);
+                                                                      },
+                                                                      child: const Text("Delete"),
+                                                                    ),
+                                                                  ],
                                                                 ),
-                                                              ).then((_) => fetchRequests());
+                                                              );
                                                             },
                                                             style: ElevatedButton.styleFrom(
-                                                              backgroundColor: Colors.blue,
+                                                              backgroundColor: Colors.red,
                                                               padding: const EdgeInsets.symmetric(horizontal: 10),
                                                             ),
-                                                            child: const Text("Edit", style: TextStyle(fontSize: 12)),
+                                                            child: const Text("Delete", style: TextStyle(fontSize: 12)),
                                                           ),
                                                         ),
 
-                                                      const SizedBox(width: 6),
-
-                                                      // DELETE
-                                                      SizedBox(
-                                                        height: 32,
-                                                        child: ElevatedButton(
-                                                          onPressed: () {
-                                                            showDialog(
-                                                              context: context,
-                                                              builder: (_) => AlertDialog(
-                                                                title: const Text("Delete Request"),
-                                                                content: const Text("Are you sure you want to delete this request?"),
-                                                                actions: [
-                                                                  TextButton(
-                                                                    onPressed: () => Navigator.pop(context),
-                                                                    child: const Text("Cancel"),
-                                                                  ),
-                                                                  TextButton(
-                                                                    onPressed: () {
-                                                                      Navigator.pop(context);
-                                                                      deleteRequest(requestId);
-                                                                    },
-                                                                    child: const Text("Delete"),
-                                                                  ),
-                                                                ],
+                                                        if (status == 'FOR PAYMENT') ...[
+                                                          const SizedBox(width: 6),
+                                                          SizedBox(
+                                                            height: 32,
+                                                            child: ElevatedButton(
+                                                              onPressed: () => uploadProofOfPayment(requestId),
+                                                              style: ElevatedButton.styleFrom(
+                                                                backgroundColor: Colors.green,
+                                                                padding: const EdgeInsets.symmetric(horizontal: 8),
                                                               ),
-                                                            );
-                                                          },
-                                                          style: ElevatedButton.styleFrom(
-                                                            backgroundColor: Colors.red,
-                                                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                                                          ),
-                                                          child: const Text("Delete", style: TextStyle(fontSize: 12)),
-                                                        ),
-                                                      ),
-
-                                                      if (status == 'PENDING (Payment)') ...[
-                                                        const SizedBox(width: 6),
-                                                        SizedBox(
-                                                          height: 32,
-                                                          child: ElevatedButton(
-                                                            onPressed: () => uploadProofOfPayment(requestId),
-                                                            style: ElevatedButton.styleFrom(
-                                                              backgroundColor: Colors.green,
-                                                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                              child: const Text("Upload", style: TextStyle(fontSize: 12)),
                                                             ),
-                                                            child: const Text("Upload", style: TextStyle(fontSize: 12)),
                                                           ),
-                                                        ),
+                                                        ],
                                                       ],
-                                                    ],
+                                                    ),
                                                   ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
+                                                ],
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       );
                                     },

@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:registrar_app/screens/student_all_requests_screen.dart';
 import 'dart:convert';
 import 'request_summary_screen.dart';
+import 'student_dashboard.dart';
+import 'student_request_form.dart';
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
@@ -168,9 +170,6 @@ class _EditRequestScreenState extends State<EditRequestScreen> {
             MaterialPageRoute(
               builder: (context) => RequestSummaryScreen(
                 requestId: widget.request['_id'],
-                documentType: getSelectedDocumentNames(),
-                copies: getTotalCopies(),
-                totalAmount: _totalPrice,
                 token: widget.token,
               ),
             ),
@@ -412,13 +411,25 @@ class _EditRequestScreenState extends State<EditRequestScreen> {
           if (label == "Logout") {
             Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
           } else if (label == "Dashboard") {
-            Navigator.pushReplacementNamed(context, '/student_dashboard', arguments: {'token': widget.token});
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentDashboard(token: widget.token),
+              )
+            );
+          } else if (label == "Request") {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentRequestForm(token: widget.token),
+              ),
+            );
           } else if (label == "History") {
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => StudentAllRequestsScreen(token: widget.token),
-              ),
+              )
             );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$label clicked')));

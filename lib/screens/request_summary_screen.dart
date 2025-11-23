@@ -1,34 +1,133 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:registrar_app/screens/student_dashboard.dart';
 
-class RequestSummaryScreen extends StatelessWidget {
+const String baseUrl = 'https://g03-backend.onrender.com';
+
+class RequestSummaryScreen extends StatefulWidget {
   final String requestId;
-  final String documentType;
-  final int copies;
-  final double totalAmount;
   final String token;
 
   const RequestSummaryScreen({
     super.key,
     required this.requestId,
-    required this.documentType,
-    required this.copies,
-    required this.totalAmount,
     required this.token,
   });
 
   @override
+  _RequestSummaryScreenState createState() => _RequestSummaryScreenState();
+}
+
+class _RequestSummaryScreenState extends State<RequestSummaryScreen> {
+  Map<String, dynamic>? requestData;
+  bool isLoading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    fetchRequestData();
+  }
+
+  Future<void> fetchRequestData() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/requests/viewrequest/${widget.requestId}'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success']) {
+          // Debug: Print the full response to check if populate worked
+          print('API Response: $data');
+          setState(() {
+            requestData = data['request'];
+            isLoading = false;
+          });
+        } else {
+          setState(() {
+            errorMessage = data['message'] ?? 'Failed to load request data';
+            isLoading = false;
+          });
+        }
+      } else {
+        setState(() {
+          errorMessage = 'Failed to load request data (Status: ${response.statusCode})';
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Error: $e';
+        isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (errorMessage.isNotEmpty) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: Text(errorMessage)),
+      );
+    }
+
+    if (requestData == null) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: Text('No data available')),
+      );
+    }
+
+    // Extract data from requestData
+    String referenceId = requestData!['reference_id'] ?? 'N/A';
+    
+    // Safe access to student data (handles if populate failed)
+    dynamic student = requestData!['student_id'];
+    String fullName = 'N/A';
+    String studentNumber = 'N/A';
+    if (student is Map<String, dynamic>) {
+      String firstName = student['first_name'] ?? '';
+      String middleName = student['middle_name'] ?? '';
+      String lastName = student['last_name'] ?? '';
+      String extensions = student['extensions'] ?? '';
+      fullName = [firstName, middleName, lastName, extensions]
+          .where((part) => part.isNotEmpty)
+          .join(' ')
+          .trim();
+      if (fullName.isEmpty) fullName = 'N/A';
+      studentNumber = student['student_number'] ?? 'N/A';
+    } else {
+      // Handle if not populated (e.g., fetch separately or show ID)
+      print('Student not populated: $student');
+    }
+    
+    List<dynamic> documents = requestData!['documents'] ?? [];
+    String documentType = documents.map((doc) => doc['name']).join(', '); // Concatenate document names
+    int copies = documents.fold(0, (sum, doc) => sum + (doc['copies'] as int)); // Sum of copies
+    double totalAmount = (requestData!['total_amount'] as num?)?.toDouble() ?? 0.0;
+
     return Scaffold(
       backgroundColor: Colors.white,
-
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(25),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               // 🔴 Page Header (matches other screens)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -74,7 +173,9 @@ class RequestSummaryScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 15),
 
-                    _buildRow("Request ID:", requestId),
+                    _buildRow("Reference ID:", referenceId),
+                    _buildRow("Student Name:", fullName),
+                    _buildRow("Student Number:", studentNumber),
                     _buildRow("Document(s):", documentType),
                     _buildRow("Number of Copies:", "$copies"),
                     _buildRow("Total Amount:", "₱${totalAmount.toStringAsFixed(2)}"),
@@ -113,7 +214,7 @@ class RequestSummaryScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(
-                        builder: (context) => StudentDashboard(token: token),
+                        builder: (context) => StudentDashboard(token: widget.token),
                       ),
                       (route) => false,
                     );

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; 
+import 'package:intl/intl.dart';
 import 'dart:convert'; 
 import 'student_request_form.dart';
 import 'student_all_requests_screen.dart';
+import 'student_tracking_screen.dart'; // Add this import
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
@@ -22,16 +24,14 @@ class _StudentDashboardState extends State<StudentDashboard> {
   List<dynamic> requests = [];
   bool isLoading = true;
   String errorMessage = '';
-  String userId = '';  // Add this to store the decoded user ID
+  String userId = ''; 
 
   @override
   void initState() {
     super.initState();
-    fetchUserData(); 
-    fetchRequests();
+    fetchUserData().then((_) => fetchRequests());
   }
 
-  // In fetchUserData() - Unchanged, but now sets userId
   Future<void> fetchUserData() async {
     try {
       print('Fetching user data...');
@@ -77,18 +77,11 @@ class _StudentDashboardState extends State<StudentDashboard> {
     }
   }
 
-  // In fetchRequests() - Updated URL to use userId
   Future<void> fetchRequests() async {
-    if (userId.isEmpty) {
-      // Wait for userId to be set from fetchUserData
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (userId.isEmpty) return;  // Safety check
-    }
-
     try {
       print('Fetching requests for userId: $userId');
       final response = await http.get(
-        Uri.parse('$baseUrl/requests/$userId'),  // Fixed: Use /requests/:id instead of /requests/mine
+        Uri.parse('$baseUrl/requests/$userId'), 
         headers: {
           'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
@@ -134,57 +127,25 @@ class _StudentDashboardState extends State<StudentDashboard> {
     );
   }
 
-  Map<String, dynamic> getSummaryData() {
-    if (requests.isEmpty) {  // Early return if no requests
-      return {
-        'activeCount': '0',
-        'activeSubtitle': 'No active requests.',
-        'readyCount': '0',
-        'readySubtitle': 'No documents ready.',
-      };
-    }
-
-    int activeCount = requests.where((r) => r['status'] != 'CLAIMED').length;
-    int readyCount = requests.where((r) => r['status'] == 'FOR PICKUP').length;
-
-    String activeSubtitle = activeCount > 0 ? "Request In Progress." : "No active requests.";
-    String readySubtitle = readyCount > 0 ? "Ready for pickup." : "No documents ready.";
-
-    if (activeCount > 0) {
-      try {
-        final filtered = requests.where((r) => r['status'] != 'CLAIMED' && r['request_date'] != null);
-        if (filtered.isNotEmpty) {
-          final latestActive = filtered.reduce((a, b) => DateTime.parse(a['request_date']).isAfter(DateTime.parse(b['request_date'])) ? a : b);
-          activeSubtitle = "Latest: ${latestActive['request_date']}";
-        }
-      } catch (e) {
-        activeSubtitle = "Request In Progress.";  // Fallback on error
-      }
-    }
-
-    if (readyCount > 0) {
-      try {
-        final filtered = requests.where((r) => r['status'] == 'FOR PICKUP' && r['request_date'] != null);
-        if (filtered.isNotEmpty) {
-          final latestReady = filtered.reduce((a, b) => DateTime.parse(a['request_date']).isAfter(DateTime.parse(b['request_date'])) ? a : b);
-          readySubtitle = "Latest: ${latestReady['request_date']}";
-        }
-      } catch (e) {
-        readySubtitle = "Ready for pickup.";  // Fallback on error
-      }
-    }
-
-    return {
-      'activeCount': activeCount.toString(),
-      'activeSubtitle': activeSubtitle,
-      'readyCount': readyCount.toString(),
-      'readySubtitle': readySubtitle,
-    };
+  List<dynamic> getActiveRequests() {
+    // Filter active requests: status not 'CLAIMED', 'CANCELLED', or 'REJECTED'
+    List<dynamic> active = requests.where((r) => 
+      r['status'] != 'CLAIMED' && r['status'] != 'CANCELLED' && r['status'] != 'REJECTED'
+    ).toList();
+    
+    // Sort by request_date descending (most recent first)
+    active.sort((a, b) {
+      DateTime dateA = DateTime.tryParse(a['request_date'] ?? '') ?? DateTime(1900);
+      DateTime dateB = DateTime.tryParse(b['request_date'] ?? '') ?? DateTime(1900);
+      return dateB.compareTo(dateA);
+    });
+    
+    return active;
   }
 
   @override
   Widget build(BuildContext context) {
-    final summary = getSummaryData();
+    final activeRequests = getActiveRequests();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -368,7 +329,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
                     const SizedBox(height: 25),
 
-                    // SUMMARY CARDS
+                    // SUMMARY CARDS / OVERVIEW - Now showing list of recent active requests
                     Expanded(
                       child: Container(
                         width: double.infinity,
@@ -382,7 +343,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              "Summary Cards/Overview",
+                              "Recent Active Requests",
                               style: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontWeight: FontWeight.w700,
@@ -393,25 +354,123 @@ class _StudentDashboardState extends State<StudentDashboard> {
                             const SizedBox(height: 20),
 
                             Expanded(
-                              child: ListView(
-                                children: [
-                                  _buildSummaryCard(
-                                    title: "Active Request",
-                                    count: summary['activeCount'],
-                                    subtitle: summary['activeSubtitle'],
-                                    buttonText: "View All Requests",
-                                    icon: Icons.notifications,
-                                  ),
-                                  const SizedBox(height: 15),
-                                  _buildSummaryCard(
-                                    title: "Ready for Claim",
-                                    count: summary['readyCount'],
-                                    subtitle: summary['readySubtitle'],
-                                    buttonText: "Track Progress",
-                                    icon: Icons.list_alt,
-                                  ),
-                                ],
-                              ),
+                              child: isLoading
+                                  ? const Center(child: CircularProgressIndicator())
+                                  : activeRequests.isEmpty
+                                      ? const Center(child: Text("No active requests."))
+                                      : ListView.builder(
+                                          itemCount: activeRequests.length,
+                                          itemBuilder: (context, index) {
+                                            final req = activeRequests[index];
+                                            final docNames = (req['documents'] as List?)?.map((d) => d['name'] as String? ?? 'Unknown').join(", ") ?? "No documents";
+                                            final status = req['status'] ?? 'Unknown';
+                                            final requestId = req['reference_id'] ?? '';
+                                            return GestureDetector(
+                                              onTap: () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) => StudentTrackingScreen(token: widget.token, request: req),
+                                                  ),
+                                                );
+                                              },
+                                              child: Container(
+                                                margin: const EdgeInsets.only(bottom: 15),
+                                                padding: const EdgeInsets.all(15),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  border: Border.all(color: Colors.grey.shade300),
+                                                ),
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    // =============================
+                                                    // ROW 1 — TABLE HEADERS
+                                                    // =============================
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(vertical: 8),
+                                                      child: Row(
+                                                        children: const [
+                                                          Expanded(flex: 2,
+                                                              child: Text("Reference ID", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                          Expanded(flex: 2,
+                                                              child: Text("Document Type", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                          Expanded(flex: 2,
+                                                              child: Text("Date Requested", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                          Expanded(flex: 2,
+                                                              child: Text("Status", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                          Expanded(flex: 2,
+                                                              child: Text("Details", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                        ],
+                                                      ),
+                                                    ),
+
+                                                    const Divider(),
+
+                                                    // =============================
+                                                    // ROW 2 — ROW DATA
+                                                    // =============================
+                                                    Row(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        // Reference ID
+                                                        Expanded(
+                                                          flex: 2,
+                                                          child: Text(
+                                                            requestId,
+                                                            style: const TextStyle(fontSize: 13),
+                                                          ),
+                                                        ),
+
+                                                        // Document Type
+                                                        Expanded(
+                                                          flex: 2,
+                                                          child: Text(
+                                                            docNames,
+                                                            style: const TextStyle(fontSize: 13),
+                                                          ),
+                                                        ),
+
+                                                        // Date Requested
+                                                        Expanded(
+                                                          flex: 2,
+                                                          child: Text(
+                                                            req['request_date'] != null
+                                                              ? DateFormat('MMM d, yyyy').format(DateTime.parse(req['request_date']))
+                                                              : "Unknown",
+                                                            style: const TextStyle(fontSize: 13),
+                                                          ),
+                                                        ),
+
+                                                        // Status
+                                                        Expanded(
+                                                          flex: 2,
+                                                          child: Text(
+                                                            status,
+                                                            style: TextStyle(
+                                                              fontSize: 13,
+                                                              color: status == "PENDING (Payment)" ? Colors.orange : Colors.black,
+                                                            ),
+                                                          ),
+                                                        ),
+
+                                                        // Status Details
+                                                        Expanded(
+                                                          flex: 2,
+                                                          child: Text(
+                                                            req['status_details'] ?? "—",
+                                                            style: const TextStyle(fontSize: 13),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
                             ),
                           ],
                         ),
@@ -480,93 +539,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  // ---------------------------------
-  // SUMMARY CARD
-  // ---------------------------------
-  Widget _buildSummaryCard({
-    required String title,
-    required String count,
-    required String subtitle,
-    required String buttonText,
-    required IconData icon,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[200],
-        borderRadius: BorderRadius.circular(15),
-      ),
-      padding: const EdgeInsets.all(18),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title,
-                  style: const TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontWeight: FontWeight.w800,
-                    fontSize: 20,
-                  )),
-              const SizedBox(height: 6),
-              Text(count,
-                  style: const TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22,
-                  )),
-              Text(subtitle,
-                  style: const TextStyle(
-                    fontFamily: 'Montserrat',
-                    color: Colors.black87,
-                    fontSize: 14,
-                  )),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Icon(icon, color: Colors.red[900], size: 30),
-              const SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: () {
-                  if (buttonText == "View All Requests") {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => StudentAllRequestsScreen(token: widget.token),
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('$buttonText clicked')),
-                    );
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red[900],
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: Text(
-                  buttonText,
-                  style: const TextStyle(
-                    fontFamily: 'Montserrat',
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }

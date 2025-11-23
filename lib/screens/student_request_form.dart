@@ -417,9 +417,6 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
         MaterialPageRoute(
           builder: (context) => RequestSummaryScreen(
             requestId: requestId!,
-            documentType: getSelectedDocumentNames(),
-            copies: totalCopies,
-            totalAmount: _totalPrice,
             token: widget.token,
           )
         )
