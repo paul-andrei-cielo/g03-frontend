@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:registrar_app/screens/rfid_claim_screen.dart';
 import 'requests_by_status.dart';
 import 'staff_all_requests_screen.dart';
 
@@ -173,6 +174,14 @@ class _RegistrarDashboardState extends State<RegistrarDashboard> {
                             context,
                             MaterialPageRoute(
                               builder: (context) => AllRequestsScreen(token: widget.token),
+                            ),
+                          );
+                        }),
+                        _buildNavItem(Icons.rss_feed, "RFID Claim", onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => RfidClaimScreen(token: widget.token),
                             ),
                           );
                         }),
