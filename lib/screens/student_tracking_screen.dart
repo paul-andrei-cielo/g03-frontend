@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'student_request_form.dart';
 import 'student_all_requests_screen.dart';
-import 'dart:convert';  // Added for json, utf8, base64
-import 'package:http/http.dart' as http;  // Added for http
+import 'dart:convert'; // For json, utf8, base64
+import 'package:http/http.dart' as http; // For http
 
 const baseUrl = 'https://g03-backend.onrender.com';
 
@@ -36,10 +36,8 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
 
   Future<void> fetchUserData() async {
     try {
-      print('Fetching user data...');
       final payload = json.decode(utf8.decode(base64.decode(widget.token.split('.')[1])));
       final userId = payload['id'];
-      print('Decoded user ID: $userId');
 
       setState(() {
         this.userId = userId;
@@ -53,27 +51,21 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
         },
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data != null && data['success'] == true && data['user'] != null) {
           final user = data['user'];
-          print('User data: $user');
           setState(() {
             studentName = '${user['first_name'] ?? 'Unknown'} ${user['last_name'] ?? ''}'.trim();
             studentNumber = user['student_number'] ?? 'Unknown';
           });
         } else {
-          print('User data fetch failed: success=${data['success']}, message=${data['message']}');
           setError('Failed to load user data: ${data['message'] ?? 'Unknown error'}');
         }
       } else {
         setError('Failed to load user data: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in fetchUserData: $e');
       setError('Error fetching user data: $e');
     }
   }
@@ -85,7 +77,7 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
   }
 
   // ────────────────────────────────────────────────
-  // STATUS METADATA (constant, based on your hardcoded data)
+  // STATUS METADATA
   // ────────────────────────────────────────────────
   static const Map<String, Map<String, dynamic>> statusMetadata = {
     'FOR CLEARANCE': {
@@ -125,9 +117,6 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
     },
   };
 
-  // ────────────────────────────────────────────────
-  // STATUS ORDER (for progression)
-  // ────────────────────────────────────────────────
   static const List<String> statusOrder = [
     'FOR CLEARANCE',
     'FOR PAYMENT',
@@ -137,83 +126,70 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
   ];
 
   // ────────────────────────────────────────────────
-  // BUILD DYNAMIC TIMELINE BASED ON REQUEST STATUS
+  // BUILD TIMELINE
   // ────────────────────────────────────────────────
   List<Map<String, dynamic>> _buildTimeline() {
     final currentStatus = widget.request['status']?.toUpperCase() ?? 'FOR CLEARANCE';
-    final requestDate = widget.request['request_date']; // Assuming this is a DateTime or ISO string
+    final requestDate = widget.request['request_date'];
 
     List<Map<String, dynamic>> timeline = [];
+    int lastIndex = 0;
 
-    // If status is CANCELLED or REJECTED, show progression up to the last valid status, then add the special status
     if (currentStatus == 'CANCELLED' || currentStatus == 'REJECTED') {
-      final lastValidIndex = statusOrder.length - 1; // Assume CLAIMED is the last before special
-      for (int i = 0; i <= lastValidIndex; i++) {
+      lastIndex = statusOrder.length - 1;
+      for (int i = 0; i <= lastIndex; i++) {
         final status = statusOrder[i];
         final meta = statusMetadata[status]!;
         timeline.add({
           'status': _formatStatus(status),
-          'details': meta['details'],
+          'details': '', // no subtitle
           'timestamp': _getTimestamp(i, requestDate),
           'color': meta['color'],
-          'upload': meta['upload'],
+          'upload': false, // upload button should never show for past statuses
         });
       }
-      // Add the special status
       final meta = statusMetadata[currentStatus]!;
       timeline.add({
         'status': _formatStatus(currentStatus),
         'details': meta['details'],
-        'timestamp': DateFormat('MM/dd/yyyy\nHH:mm:ss').format(DateTime.now()), // Use current time for cancellation/rejection
+        'timestamp': DateFormat('MM/dd/yyyy\nHH:mm:ss').format(DateTime.now()),
         'color': meta['color'],
-        'upload': meta['upload'],
+        'upload': false,
       });
     } else {
-      // Normal progression: Show statuses up to the current one
       final currentIndex = statusOrder.indexOf(currentStatus);
-      if (currentIndex == -1) {
-        // Fallback: Show only FOR CLEARANCE if status is invalid
-        final status = statusOrder[0];
+      lastIndex = currentIndex == -1 ? 0 : currentIndex;
+
+      for (int i = 0; i <= lastIndex; i++) {
+        final status = statusOrder[i];
         final meta = statusMetadata[status]!;
+
+        // Upload button logic: Only show for FOR PAYMENT if it is the latest status
+        bool showUpload = meta['upload'] && i == lastIndex;
+
         timeline.add({
           'status': _formatStatus(status),
-          'details': meta['details'],
-          'timestamp': _getTimestamp(0, requestDate),
+          'details': i == lastIndex ? meta['details'] : '',
+          'timestamp': _getTimestamp(i, requestDate),
           'color': meta['color'],
-          'upload': meta['upload'],
+          'upload': showUpload,
         });
-      } else {
-        for (int i = 0; i <= currentIndex; i++) {
-          final status = statusOrder[i];
-          final meta = statusMetadata[status]!;
-          timeline.add({
-            'status': _formatStatus(status),
-            'details': meta['details'],
-            'timestamp': _getTimestamp(i, requestDate),
-            'color': meta['color'],
-            'upload': meta['upload'],
-          });
-        }
       }
     }
 
     return timeline;
   }
 
-  // Helper: Format status to title case (e.g., "FOR CLEARANCE" -> "For Clearance")
   String _formatStatus(String status) {
     return status.split(' ').map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase()).join(' ');
   }
 
-  // Helper: Get timestamp for a status index
   String _getTimestamp(int index, dynamic requestDate) {
-    if (index == 0 && requestDate != null) {
-      // For the first status, use request_date
+    if (requestDate != null) {
       final date = requestDate is DateTime ? requestDate : DateTime.parse(requestDate);
-      return DateFormat('MM/dd/yyyy\nHH:mm:ss').format(date);
+      return DateFormat('MM/dd/yyyy\nHH:mm:ss').format(date.add(Duration(hours: index))); // stagger optional
     }
-    // For others, use a placeholder (since no real timestamps exist)
-    return 'Pending'; // Or use DateTime.now() if you want current time
+    return 'Pending';
   }
 
   Widget _buildNavItem(IconData icon, String label) {
@@ -225,30 +201,15 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
           if (label == "Logout") {
             Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
           } else if (label == "Request") {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => StudentRequestForm(token: widget.token),
-              ),
-            );
+            Navigator.push(context, MaterialPageRoute(builder: (context) => StudentRequestForm(token: widget.token)));
           } else if (label == "Dashboard") {
-            Navigator.pop(context); // Assuming dashboard is the previous screen
+            Navigator.pop(context);
           } else if (label == "History") {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => StudentAllRequestsScreen(token: widget.token),
-              ),
-            );
+            Navigator.push(context, MaterialPageRoute(builder: (context) => StudentAllRequestsScreen(token: widget.token)));
           } else if (label == "Tracking") {
-            // Already on tracking, maybe do nothing or refresh
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Already on Tracking')),
-            );
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Already on Tracking')));
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('$label clicked')),
-            );
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$label clicked')));
           }
         },
         child: Padding(
@@ -275,7 +236,6 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
     );
   }
 
-  // Cancel Request Dialog (unchanged)
   void _cancelRequest() {
     showDialog(
       context: context,
@@ -283,16 +243,11 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
         title: const Text("Cancel Request"),
         content: const Text("Are you sure you want to cancel this request?"),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("No"),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("No")),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Request cancelled.")),
-              );
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Request cancelled.")));
             },
             child: const Text("Yes, Cancel"),
           ),
@@ -303,20 +258,18 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final reference = widget.request['reference_id'] ?? "#68ebba15"; // Updated to match model
+    final reference = widget.request['reference_id'] ?? "#68ebba15";
     final document = widget.request['documents'] != null && (widget.request['documents'] as List).isNotEmpty
-        ? (widget.request['documents'][0]['name'] ?? "Document") // Assume first document
+        ? (widget.request['documents'][0]['name'] ?? "Document")
         : "Document";
 
-    final timeline = _buildTimeline(); // Dynamically build timeline
+    final timeline = _buildTimeline();
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: Row(
         children: [
-          // ───────────────────────────────────────────────
-          // SIDEBAR — MATCHED FROM DASHBOARD (unchanged)
-          // ───────────────────────────────────────────────
+          // SIDEBAR
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             width: isCollapsed ? 80 : 250,
@@ -330,44 +283,23 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
                       Container(
                         width: 80,
                         height: 80,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                        ),
-                        child: ClipOval(
-                          child: Image.asset('assets/images/Req-ITLogo.png'),
-                        ),
+                        decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
+                        child: ClipOval(child: Image.asset('assets/images/Req-ITLogo.png')),
                       ),
                       const SizedBox(height: 10),
-                      Text(
-                        studentName,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontFamily: 'Montserrat',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        studentNumber,
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontFamily: 'Montserrat',
-                          fontSize: 14,
-                        ),
-                      ),
+                      Text(studentName,
+                          style: const TextStyle(color: Colors.white, fontFamily: 'Montserrat', fontWeight: FontWeight.bold, fontSize: 16),
+                          textAlign: TextAlign.center),
+                      Text(studentNumber,
+                          style: const TextStyle(color: Colors.white70, fontFamily: 'Montserrat', fontSize: 14)),
                     ],
                   )
                 else
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Image.asset('assets/images/Req-ITLogo.png',
-                        width: 45, height: 45),
+                    child: Image.asset('assets/images/Req-ITLogo.png', width: 45, height: 45),
                   ),
                 const SizedBox(height: 40),
-
-                // NAV
                 Expanded(
                   child: SingleChildScrollView(
                     child: Column(
@@ -382,15 +314,13 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
                     ),
                   ),
                 ),
-                _buildNavItem(Icons.logout, "Logout"),  // Removed 'const'
+                _buildNavItem(Icons.logout, "Logout"),
                 const SizedBox(height: 20),
               ],
             ),
           ),
 
-          // ───────────────────────────────────────────────
-          // MAIN CONTENT (updated to use dynamic timeline)
-          // ───────────────────────────────────────────────
+          // MAIN CONTENT
           Expanded(
             child: SafeArea(
               child: Padding(
@@ -398,78 +328,41 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // HEADER (unchanged)
+                    // HEADER
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Row(
                           children: [
                             IconButton(
-                              icon: Icon(
-                                isCollapsed ? Icons.menu_open : Icons.menu,
-                                size: 30,
-                                color: Colors.black87,
-                              ),
-                              onPressed: () {
-                                setState(() => isCollapsed = !isCollapsed);
-                              },
+                              icon: Icon(isCollapsed ? Icons.menu_open : Icons.menu, size: 30, color: Colors.black87),
+                              onPressed: () => setState(() => isCollapsed = !isCollapsed),
                             ),
                             const SizedBox(width: 10),
-                            Text(
-                              "Hello, ${studentName.split(' ').first}!",
-                              style: TextStyle(
-                                fontFamily: 'Montserrat',
-                                fontWeight: FontWeight.bold,
-                                fontSize: 28,
-                              ),
-                            ),
+                            Text("Hello, ${studentName.split(' ').first}!",
+                                style: const TextStyle(fontFamily: 'Montserrat', fontWeight: FontWeight.bold, fontSize: 28)),
                           ],
                         ),
-                        Image.asset(
-                          'assets/images/Req-ITLongLogo.png',
-                          height: 60,
-                        ),
+                        Image.asset('assets/images/Req-ITLongLogo.png', height: 60),
                       ],
                     ),
-
                     const SizedBox(height: 20),
-
-                    // REFERENCE TITLE + CANCEL BUTTON (unchanged)
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          "Reference $reference | $document",
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontFamily: 'Montserrat',
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                        Text("Reference $reference | $document",
+                            style: const TextStyle(fontSize: 20, fontFamily: 'Montserrat', fontWeight: FontWeight.w700)),
                         ElevatedButton(
                           onPressed: _cancelRequest,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 25, vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                          ),
-                          child: const Text(
-                            "Cancel Request",
-                            style: TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 14,
-                              color: Colors.white,
-                            ),
-                          ),
+                              backgroundColor: Colors.grey,
+                              padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30))),
+                          child: const Text("Cancel Request", style: TextStyle(fontFamily: 'Montserrat', fontSize: 14, color: Colors.white)),
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 20),
-
                     Expanded(
                       child: ListView.builder(
                         itemCount: timeline.length,
@@ -482,95 +375,41 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // DATE/TIME
                                 SizedBox(
                                   width: 100,
-                                  child: Text(
-                                    item["timestamp"],
-                                    textAlign: TextAlign.right,
-                                    style: const TextStyle(
-                                      fontFamily: 'Montserrat',
-                                      fontSize: 13,
-                                    ),
-                                  ),
+                                  child: Text(item["timestamp"],
+                                      textAlign: TextAlign.right, style: const TextStyle(fontFamily: 'Montserrat', fontSize: 13)),
                                 ),
-
                                 const SizedBox(width: 20),
-
-                                // TIMELINE DOT + LINE
                                 Column(
                                   children: [
-                                    Container(
-                                      width: 14,
-                                      height: 14,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: item["color"],
-                                      ),
-                                    ),
+                                    Container(width: 14, height: 14, decoration: BoxDecoration(shape: BoxShape.circle, color: item["color"])),
                                     if (index != timeline.length - 1)
-                                      Container(
-                                        width: 2,
-                                        height: 60,
-                                        color: Colors.grey.shade400,
-                                      ),
+                                      Container(width: 2, height: 60, color: Colors.grey.shade400),
                                   ],
                                 ),
-
                                 const SizedBox(width: 20),
-
-                                // STATUS + DETAILS
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        item["status"],
-                                        style: TextStyle(
-                                          fontFamily: 'Montserrat',
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 17,
-                                          color: item["color"],
-                                        ),
-                                      ),
+                                      Text(item["status"],
+                                          style: TextStyle(fontFamily: 'Montserrat', fontWeight: FontWeight.bold, fontSize: 17, color: item["color"])),
                                       const SizedBox(height: 6),
-                                      Text(
-                                        item["details"],
-                                        style: const TextStyle(
-                                          fontFamily: 'Montserrat',
-                                          fontSize: 14,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-
-                                      // UPLOAD BUTTON
+                                      if (item["details"].isNotEmpty)
+                                        Text(item["details"], style: const TextStyle(fontFamily: 'Montserrat', fontSize: 14, color: Colors.black87)),
                                       if (hasUpload)
                                         Padding(
-                                          padding:
-                                              const EdgeInsets.only(top: 10),
+                                          padding: const EdgeInsets.only(top: 10),
                                           child: ElevatedButton(
                                             onPressed: () {},
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  Colors.grey.shade300,
-                                              foregroundColor: Colors.black,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 22,
-                                                      vertical: 10),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(25),
-                                              ),
-                                            ),
-                                            child: const Text(
-                                              "Upload",
-                                              style: TextStyle(
-                                                fontFamily: 'Montserrat',
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
+                                                backgroundColor: Colors.grey.shade300,
+                                                foregroundColor: Colors.black,
+                                                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25))),
+                                            child: const Text("Upload",
+                                                style: TextStyle(fontFamily: 'Montserrat', fontWeight: FontWeight.bold)),
                                           ),
                                         ),
                                     ],

@@ -1,4 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'requests_by_status.dart';
+import 'staff_all_requests_screen.dart';
+
+const String baseUrl = 'https://g03-backend.onrender.com';
 
 class RegistrarDashboard extends StatefulWidget {
   const RegistrarDashboard({super.key, required this.token});
@@ -12,8 +18,95 @@ class RegistrarDashboard extends StatefulWidget {
 class _RegistrarDashboardState extends State<RegistrarDashboard> {
   bool isCollapsed = false;
 
+  // Status display order
+  final List<String> statusOrder = [
+    "FOR CLEARANCE",
+    "FOR PAYMENT",
+    "PROCESSING",
+    "FOR PICKUP",
+    "CLAIMED",
+    "CANCELLED",
+    "REJECTED",
+  ];
+
+  // Live counts (initially zero)
+  Map<String, int> statusCounts = {
+    "FOR CLEARANCE": 0,
+    "FOR PAYMENT": 0,
+    "PROCESSING": 0,
+    "FOR PICKUP": 0,
+    "CLAIMED": 0,
+    "CANCELLED": 0,
+    "REJECTED": 0,
+  };
+
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchRequestCounts();
+  }
+
+  /// -------------------------
+  /// FETCH DATA FROM BACKEND
+  /// -------------------------
+  Future<void> fetchRequestCounts() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/requests/requestcounts"),
+        headers: {
+          "Authorization": "Bearer ${widget.token}",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['counts'] != null && data['counts'] is Map) {
+          final Map<String, int> newCounts = {};
+          for (String key in statusOrder) {
+            if (data['counts'][key] != null) {
+              final val = data['counts'][key];
+              newCounts[key] = (val is int) ? val : int.tryParse(val.toString()) ?? 0;
+            } else {
+              newCounts[key] = 0;
+            }
+          }
+
+          setState(() {
+            statusCounts = newCounts;
+            isLoading = false;
+          });
+        } else {
+          print("API returned invalid counts: ${data['counts']}");
+          setState(() => isLoading = false);
+        }
+      } else {
+        print("Failed to fetch request counts: ${response.body}");
+        setState(() => isLoading = false);
+      }
+    } catch (e) {
+      print("Error fetching request counts: $e");
+      setState(() => isLoading = false);
+    }
+  }
+
+  /// -------------------------
+  /// REFRESH COUNTS AFTER UPDATE
+  /// -------------------------
+  Future<void> refreshCountsAfterUpdate() async {
+    await fetchRequestCounts();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final boxPadding = screenHeight * 0.015;
+    final countFontSize = screenHeight * 0.03;
+    final titleFontSize = screenHeight * 0.018;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Row(
@@ -26,8 +119,7 @@ class _RegistrarDashboardState extends State<RegistrarDashboard> {
             child: Column(
               children: [
                 const SizedBox(height: 30),
-
-                // Logo section
+                // Logo
                 if (!isCollapsed)
                   Column(
                     children: [
@@ -69,29 +161,34 @@ class _RegistrarDashboardState extends State<RegistrarDashboard> {
                       ),
                     ),
                   ),
-
                 const SizedBox(height: 40),
-
                 // Sidebar items
                 Expanded(
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        _buildNavItem(Icons.home, "Dashboard"),
-                        _buildNavItem(Icons.description, "Requests"),
+                        _buildNavItem(Icons.home, "Dashboard", onTap: () {}),
+                        _buildNavItem(Icons.description, "Requests", onTap: () {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => AllRequestsScreen(token: widget.token),
+                            ),
+                          );
+                        }),
                         _buildNavItem(Icons.person, "Profile"),
                       ],
                     ),
                   ),
                 ),
-
-                _buildNavItem(Icons.logout, "Logout"),
+                _buildNavItem(Icons.logout, "Logout", onTap: () {
+                  Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                }),
                 const SizedBox(height: 20),
               ],
             ),
           ),
-
-          // Main Content
+          // Main content
           Expanded(
             child: SafeArea(
               child: Padding(
@@ -132,142 +229,33 @@ class _RegistrarDashboardState extends State<RegistrarDashboard> {
                         Image.asset(
                           'assets/images/Req-ITLongLogo.png',
                           height: 55,
-                          fit: BoxFit.contain,
                         ),
                       ],
-                    ),
-
-                    const SizedBox(height: 30),
-
-                    // Summary Boxes
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildSummaryBox("Pending", "12"),
-                        _buildSummaryBox("Processing", "7"),
-                        _buildSummaryBox("Completed", "3"),
-                      ],
-                    ),
-
-                    const SizedBox(height: 40),
-
-                    const Text(
-                      "Document Requests",
-                      style: TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontWeight: FontWeight.w700,
-                        fontSize: 20,
-                        color: Colors.black87,
-                      ),
                     ),
                     const SizedBox(height: 20),
-
-                    // Table Header
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(10),
-                          topRight: Radius.circular(10),
-                        ),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 12, horizontal: 20),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              "Student Name / Request ID",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              "Document Type",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              "Date Requested",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 1,
-                            child: Text(
-                              "Status",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Sample Rows (example data)
+                    // Summary section
                     Expanded(
-                      child: ListView.builder(
-                        itemCount: 4, // example only
-                        itemBuilder: (context, index) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 15, horizontal: 20),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: Colors.grey.shade300,
-                                ),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : Column(
                               children: [
-                                const Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    "John Doe — #REQ202311",
-                                    style: TextStyle(fontFamily: 'Montserrat'),
-                                  ),
-                                ),
-                                const Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    "Transcript",
-                                    style: TextStyle(fontFamily: 'Montserrat'),
-                                  ),
-                                ),
-                                const Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    "09/01/2023",
-                                    style: TextStyle(fontFamily: 'Montserrat'),
-                                  ),
-                                ),
+                                Expanded(child: _buildSummaryRow(0, 1, boxPadding, countFontSize, titleFontSize)),
+                                const SizedBox(height: 10),
+                                Expanded(child: _buildSummaryRow(2, 3, boxPadding, countFontSize, titleFontSize)),
+                                const SizedBox(height: 10),
+                                Expanded(child: _buildSummaryRow(4, 5, boxPadding, countFontSize, titleFontSize)),
+                                const SizedBox(height: 10),
                                 Expanded(
-                                  flex: 1,
-                                  child: _buildStatusBadge("Pending"),
+                                  child: Row(
+                                    children: [
+                                      Expanded(child: _box(6, boxPadding, countFontSize, titleFontSize)),
+                                      const SizedBox(width: 10),
+                                      const Expanded(child: SizedBox()),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
-                          );
-                        },
-                      ),
                     ),
                   ],
                 ),
@@ -279,31 +267,53 @@ class _RegistrarDashboardState extends State<RegistrarDashboard> {
     );
   }
 
-  @override
-  void initState() {
-    super.initState();
+  Widget _buildSummaryRow(int i1, int i2, double pad, double countSize, double titleSize) {
+    return Row(
+      children: [
+        Expanded(child: _box(i1, pad, countSize, titleSize)),
+        const SizedBox(width: 10),
+        Expanded(child: _box(i2, pad, countSize, titleSize)),
+      ],
+    );
   }
 
-  Widget _buildNavItem(IconData icon, String label) {
+  Widget _box(int index, double padding, double countSize, double titleSize) {
+    String status = statusOrder[index];
+    String count = (statusCounts[status] ?? 0).toString();
+    return _buildSummaryBox(
+      status,
+      count,
+      padding: padding,
+      countSize: countSize,
+      titleSize: titleSize,
+      onTap: () => _navigateToStatus(status),
+    );
+  }
+
+  void _navigateToStatus(String status) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RequestsByStatusScreen(
+          status: status,
+          token: widget.token,
+          refreshDashboard: refreshCountsAfterUpdate,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, String label, {VoidCallback? onTap}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10),
       child: InkWell(
         borderRadius: BorderRadius.circular(15),
-        onTap: () {
-          if (label == "Logout") {
-            // Go back to login screen
-            Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/login',
-              (route) => false, // removes all previous routes
-            );
-          } else {
-            // You can add navigation for other menu items later
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('$label clicked')),
-            );
-          }
-        },
+        onTap: onTap ??
+            () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$label clicked')),
+              );
+            },
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
           child: Row(
@@ -328,73 +338,47 @@ class _RegistrarDashboardState extends State<RegistrarDashboard> {
     );
   }
 
-  Widget _buildSummaryBox(String title, String count) {
-    return Expanded(
+  Widget _buildSummaryBox(
+    String title,
+    String count, {
+    required double padding,
+    required double countSize,
+    required double titleSize,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 8),
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.symmetric(vertical: padding),
         decoration: BoxDecoration(
           color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               title,
-              style: const TextStyle(
+              textAlign: TextAlign.center,
+              style: TextStyle(
                 fontFamily: 'Montserrat',
                 fontWeight: FontWeight.w600,
-                fontSize: 18,
+                fontSize: titleSize,
                 color: Colors.black87,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             Text(
               count,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'Montserrat',
                 fontWeight: FontWeight.bold,
-                fontSize: 28,
+                fontSize: countSize,
                 color: Colors.black87,
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  static Widget _buildStatusBadge(String status) {
-    Color bgColor;
-    Color textColor = Colors.black;
-
-    switch (status) {
-      case "Pending":
-        bgColor = Colors.grey.shade300;
-        break;
-      case "Processing":
-        bgColor = Colors.orange.shade300;
-        break;
-      case "Completed":
-        bgColor = Colors.green.shade300;
-        break;
-      default:
-        bgColor = Colors.grey.shade300;
-    }
-
-    return Container(
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          fontFamily: 'Montserrat',
-          fontWeight: FontWeight.w600,
-          color: textColor,
         ),
       ),
     );
