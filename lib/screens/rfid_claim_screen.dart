@@ -1,7 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'registrar_dashboard.dart';
 import 'staff_all_requests_screen.dart';
 import 'registrar_profile_screen.dart';
+
+const String baseUrl = 'https://g03-backend.onrender.com';
 
 class RfidClaimScreen extends StatefulWidget {
   final String token;
@@ -16,12 +20,16 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
 
   final TextEditingController rfidController = TextEditingController();
   final FocusNode rfidFocus = FocusNode();
+  final TextEditingController searchController = TextEditingController();
 
   Map<String, dynamic>? requestData;
+  List requests = [];
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    fetchAllRequests();
     Future.delayed(Duration(milliseconds: 200), () {
       FocusScope.of(context).requestFocus(rfidFocus);
     });
@@ -31,27 +39,125 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
   void dispose() {
     rfidController.dispose();
     rfidFocus.dispose();
+    searchController.dispose();
     super.dispose();
   }
 
-  // Simulated Scan
-  void handleScan(String code) {
-    setState(() {
-      requestData = {
-        "reference": "#68ebba15",
-        "student": "Jereeza Mae Lapara",
-        "document": "Honorable Dismissal",
-        "status": "FOR PICKUP",
-        "dateRequested": "11/05/2025 • 10:45 AM",
-        "pickupNote": "Please bring your student ID for RFID authentication.",
-      };
-    });
+  Future<void> fetchAllRequests() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/requests/viewrequests'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
 
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          setState(() {
+            requests = data['requests'] ?? [];
+            // Sort requests from oldest to newest by request_date
+            requests.sort((a, b) {
+              final dateA = a['request_date'] ?? '';
+              final dateB = b['request_date'] ?? '';
+              return dateA.compareTo(dateB);
+            });
+            isLoading = false;
+          });
+        } else {
+          print("API returned failure: ${data['message']}");
+          setState(() => isLoading = false);
+        }
+      } else {
+        print("Failed to fetch: ${response.body}");
+        setState(() => isLoading = false);
+      }
+    } catch (e) {
+      print("Error fetching requests: $e");
+      setState(() => isLoading = false);
+    }
+  }
+
+  void handleScan(String code) {
+    if (requestData != null) {
+      // RFID scan for claiming: Compare scanned code to the student's RFID tag
+      final studentRfid = requestData!['student_id']['rfid_tag'];
+      if (studentRfid != null && studentRfid == code && requestData!['status'] == 'FOR PICKUP') {
+        // Valid match: Proceed to claim
+        confirmClaim();
+      } else {
+        // Invalid RFID or request not ready
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Invalid RFID tag or request not ready for pickup')),
+        );
+      }
+    } else {
+      // No request loaded: Do not attempt to load via RFID (rely on search)
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No request loaded. Use search to load a request first.')),
+      );
+    }
     rfidController.clear();
     FocusScope.of(context).requestFocus(rfidFocus);
   }
 
-  Color getStatusColor(String status) {
+  void handleSearch(String query) {
+    if (query.isNotEmpty) {
+      final matchingRequest = requests.firstWhere(
+        (r) => r['reference_id'] == query && r['status'] == 'FOR PICKUP',
+        orElse: () => null,
+      );
+      if (matchingRequest != null) {
+        setState(() {
+          requestData = matchingRequest;
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No matching request found for reference ID: $query')),
+        );
+      }
+    }
+    searchController.clear();
+  }
+
+  Future<void> confirmClaim() async {
+    if (requestData == null) return;
+
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/updaterequest/${requestData!['id']}'),  // Fixed URL to match backend
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'status': 'CLAIMED'}),
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          requestData = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Document claimed successfully')),
+        );
+        fetchAllRequests();
+      } else {
+        print("Failed to claim: ${response.body}");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to claim document: ${response.body}')),
+        );
+      }
+    } catch (e) {
+      print("Error claiming: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error claiming document')),
+      );
+    }
+  }
+
+  Color getStatusColor(String? status) {
     switch (status) {
       case "FOR CLEARANCE":
         return Color(0xFFF4C542);
@@ -88,8 +194,6 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 30),
-
-                // LOGO
                 if (!isCollapsed)
                   Column(
                     children: [
@@ -131,10 +235,7 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
                       ),
                     ),
                   ),
-
                 const SizedBox(height: 40),
-
-                // NAV ITEMS
                 Expanded(
                   child: SingleChildScrollView(
                     child: Column(
@@ -157,8 +258,7 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
                             ),
                           );
                         }),
-                        _navItem(Icons.rss_feed, "RFID Claim",
-                            isActive: true),
+                        _navItem(Icons.rss_feed, "RFID Claim", isActive: true),
                         _navItem(Icons.person, "Profile", onTap: () {
                           Navigator.pushReplacement(
                             context,
@@ -172,12 +272,10 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
                     ),
                   ),
                 ),
-
                 _navItem(Icons.logout, "Logout", onTap: () {
                   Navigator.pushNamedAndRemoveUntil(
                       context, '/login', (route) => false);
                 }),
-
                 const SizedBox(height: 20),
               ],
             ),
@@ -201,9 +299,7 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
                           children: [
                             IconButton(
                               icon: Icon(
-                                isCollapsed
-                                    ? Icons.menu_open
-                                    : Icons.menu,
+                                isCollapsed ? Icons.menu_open : Icons.menu,
                                 size: 30,
                                 color: Colors.black87,
                               ),
@@ -232,58 +328,133 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
                       ],
                     ),
 
-                    SizedBox(height: 30),
+                    SizedBox(height: 20),
 
-                    // RFID SCAN BOX
-                    Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.all(25),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(20),
+                    // SEARCH BAR
+                    TextField(
+                      controller: searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Search by reference ID...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[100],
                       ),
-                      child: Column(
-                        children: [
-                          Text(
-                            "Scan RFID to Claim Document",
-                            style: TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          SizedBox(height: 20),
-                          Icon(Icons.contactless,
-                              size: 80, color: Colors.red),
-                          SizedBox(height: 20),
-                          Text(
-                            "Tap your school ID on the RFID scanner.",
-                            style: TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontSize: 16,
-                              color: Colors.black54,
-                            ),
-                          ),
-                          SizedBox(height: 30),
-
-                          // Hidden input
-                          Opacity(
-                            opacity: 0,
-                            child: TextField(
-                              controller: rfidController,
-                              focusNode: rfidFocus,
-                              autofocus: true,
-                              onSubmitted: handleScan,
-                            ),
-                          ),
-                        ],
-                      ),
+                      onSubmitted: handleSearch,
                     ),
 
-                    SizedBox(height: 30),
+                    SizedBox(height: 20),
 
+                    // CONDITIONAL LAYOUT: REQUEST CARD AND RFID SCAN
                     if (requestData != null)
-                      _buildClaimCard(requestData!),
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // REQUEST CARD (LEFT COLUMN)
+                            Expanded(
+                              child: _buildClaimCard(requestData!),
+                            ),
+                            SizedBox(width: 20),
+                            // RFID SCAN BOX (RIGHT COLUMN)
+                            Expanded(
+                              child: Container(
+                                padding: EdgeInsets.all(25),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      "Scan RFID to Claim Document",
+                                      style: TextStyle(
+                                        fontFamily: 'Montserrat',
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    SizedBox(height: 20),
+                                    Icon(Icons.contactless,
+                                        size: 80, color: Colors.red),
+                                    SizedBox(height: 20),
+                                    Text(
+                                      "Tap your school ID on the RFID scanner.",
+                                      style: TextStyle(
+                                        fontFamily: 'Montserrat',
+                                        fontSize: 16,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                    SizedBox(height: 30),
+                                    // Hidden input
+                                    Opacity(
+                                      opacity: 0,
+                                      child: TextField(
+                                        controller: rfidController,
+                                        focusNode: rfidFocus,
+                                        autofocus: true,
+                                        onSubmitted: handleScan,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      // RFID SCAN BOX (FULL WIDTH WHEN NO REQUEST)
+                      Expanded(
+                        child: Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.all(25),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                "Scan RFID to Claim Document",
+                                style: TextStyle(
+                                  fontFamily: 'Montserrat',
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              SizedBox(height: 20),
+                              Icon(Icons.contactless,
+                                  size: 80, color: Colors.red),
+                              SizedBox(height: 20),
+                              Text(
+                                "Tap your school ID on the RFID scanner.",
+                                style: TextStyle(
+                                  fontFamily: 'Montserrat',
+                                  fontSize: 16,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              SizedBox(height: 30),
+                              // Hidden input
+                              Opacity(
+                                opacity: 0,
+                                child: TextField(
+                                  controller: rfidController,
+                                  focusNode: rfidFocus,
+                                  autofocus: true,
+                                  onSubmitted: handleScan,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -294,9 +465,6 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
     );
   }
 
-  // ------------------------------------
-  // NAV ITEM
-  // ------------------------------------
   Widget _navItem(IconData icon, String label,
       {bool isActive = false, VoidCallback? onTap}) {
     return Padding(
@@ -319,8 +487,7 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
                     color: Colors.white.withOpacity(isActive ? 1 : 0.8),
                     fontFamily: 'Montserrat',
                     fontSize: 16,
-                    fontWeight:
-                        isActive ? FontWeight.bold : FontWeight.w600,
+                    fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
                   ),
                 ),
               ]
@@ -331,29 +498,38 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
     );
   }
 
-  // ------------------------------------
-  // CLAIM CARD
-  // ------------------------------------
   Widget _buildClaimCard(Map<String, dynamic> data) {
-    final color = getStatusColor(data["status"]);
+    final student = data['student_id'] as Map<String, dynamic>?;
+    final studentName = (student != null
+            ? '${student['first_name'] ?? ''} ${student['last_name'] ?? ''}'
+            : 'Unknown Student')
+        .trim();
+
+    final reference = data['reference_id'] ?? 'N/A';
+    final status = data['status'] ?? 'UNKNOWN';
+    final dateRequested = data['request_date'] != null
+        ? DateTime.tryParse(data['request_date'])?.toLocal().toString().split(' ')[0] ??
+            'Unknown Date'
+        : 'Unknown Date';
+
+    final documents = data['documents'] as List<dynamic>? ?? [];
+    final color = getStatusColor(status);
 
     return Container(
-      width: double.infinity,
       padding: EdgeInsets.all(25),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.grey.shade300),
         boxShadow: [
-          BoxShadow(
-              blurRadius: 6, offset: Offset(0, 2), color: Colors.black12)
+          BoxShadow(blurRadius: 6, offset: Offset(0, 2), color: Colors.black12)
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            data["reference"],
+            reference,
             style: TextStyle(
               fontFamily: 'Montserrat',
               fontWeight: FontWeight.bold,
@@ -362,7 +538,7 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
           ),
           SizedBox(height: 10),
           Text(
-            "${data["student"]} • ${data["document"]}",
+            studentName,
             style: TextStyle(
               fontFamily: 'Montserrat',
               fontSize: 16,
@@ -370,18 +546,39 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
             ),
           ),
           SizedBox(height: 15),
-
+          if (documents.isNotEmpty) ...[
+            Text(
+              "Documents Requested:",
+              style: TextStyle(
+                fontFamily: 'Montserrat',
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            SizedBox(height: 10),
+            ...documents.map((doc) => Padding(
+              padding: EdgeInsets.only(bottom: 5),
+              child: Text(
+                "• ${doc['name'] ?? 'Unknown Document'} (${doc['copies'] ?? 0}x)",
+                style: TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 14,
+                  color: Colors.black87,
+                ),
+              ),
+            )),
+            SizedBox(height: 15),
+          ],
           Row(
             children: [
               Container(
                 width: 14,
                 height: 14,
-                decoration:
-                    BoxDecoration(color: color, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
               SizedBox(width: 10),
               Text(
-                data["status"],
+                status,
                 style: TextStyle(
                   fontFamily: 'Montserrat',
                   fontWeight: FontWeight.bold,
@@ -391,50 +588,15 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
               )
             ],
           ),
-
           SizedBox(height: 15),
           Text(
-            "Requested: ${data["dateRequested"]}",
+            "Requested: $dateRequested",
             style: TextStyle(
               fontFamily: 'Montserrat',
               fontSize: 14,
               color: Colors.black54,
             ),
           ),
-          SizedBox(height: 20),
-          Text(
-            data["pickupNote"],
-            style: TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 14,
-            ),
-          ),
-
-          SizedBox(height: 25),
-
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red[900],
-                padding:
-                    EdgeInsets.symmetric(horizontal: 25, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: Text(
-                "Confirm Claim",
-                style: TextStyle(
-                  fontFamily: 'Montserrat',
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          )
         ],
       ),
     );
