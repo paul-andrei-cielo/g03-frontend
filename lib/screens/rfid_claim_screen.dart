@@ -82,22 +82,11 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
 
   void handleScan(String code) {
     if (requestData != null) {
-      // RFID scan for claiming: Compare scanned code to the student's RFID tag
-      final studentRfid = requestData!['student_id']['rfid_tag'];
-      if (studentRfid != null && studentRfid == code && requestData!['status'] == 'FOR PICKUP') {
-        // Valid match: Proceed to claim
-        confirmClaim();
-      } else {
-        // Invalid RFID or request not ready
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Invalid RFID tag or request not ready for pickup')),
-        );
-      }
+      // Always attempt to scan RFID for the loaded request; let backend handle validation (student ownership or staff override)
+      performRfidScan(code, requestData!['_id']);
     } else {
-      // No request loaded: Do not attempt to load via RFID (rely on search)
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No request loaded. Use search to load a request first.')),
-      );
+      // No request loaded: Do not attempt to scan
+      _showDialog('Error', 'No request loaded. Use search to load a request first.');
     }
     rfidController.clear();
     FocusScope.of(context).requestFocus(rfidFocus);
@@ -106,7 +95,7 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
   void handleSearch(String query) {
     if (query.isNotEmpty) {
       final matchingRequest = requests.firstWhere(
-        (r) => r['reference_id'] == query && r['status'] == 'FOR PICKUP',
+        (r) => r['reference_id'] == query,
         orElse: () => null,
       );
       if (matchingRequest != null) {
@@ -114,47 +103,65 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
           requestData = matchingRequest;
         });
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No matching request found for reference ID: $query')),
-        );
+        _showDialog('Error', 'No matching request found for reference ID: $query');
       }
     }
     searchController.clear();
   }
 
-  Future<void> confirmClaim() async {
-    if (requestData == null) return;
-
+  Future<void> performRfidScan(String rfidTag, String requestId) async {
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/updaterequest/${requestData!['id']}'),  // Fixed URL to match backend
+      final response = await http.post(
+        Uri.parse('$baseUrl/log/scan'), 
         headers: {
           'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({'status': 'CLAIMED'}),
+        body: jsonEncode({
+          'rfid_tag': rfidTag,
+          'request_id': requestId,
+        }),
       );
 
       if (response.statusCode == 200) {
-        setState(() {
-          requestData = null;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Document claimed successfully')),
-        );
-        fetchAllRequests();
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          setState(() {
+            requestData = null;  // Clear the loaded request after successful claim
+          });
+          _showDialog('Success', 'Document claimed successfully');
+          fetchAllRequests();  // Refresh the requests list
+        } else {
+          _showDialog('Error', 'Failed to claim: ${data['message']}');
+        }
       } else {
-        print("Failed to claim: ${response.body}");
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to claim document: ${response.body}')),
-        );
+        print("Failed to scan RFID: ${response.body}");
+        _showDialog('Error', 'Failed to claim: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print("Error claiming: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error claiming document')),
-      );
+      print("Error during RFID scan: $e");
+      _showDialog('Error', 'Error claiming document: $e');
     }
+  }
+
+  void _showDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Color getStatusColor(String? status) {

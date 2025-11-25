@@ -4,7 +4,8 @@ import 'package:intl/intl.dart';
 import 'dart:convert'; 
 import 'student_request_form.dart';
 import 'student_all_requests_screen.dart';
-import 'student_tracking_screen.dart'; // Add this import
+import 'student_tracking_screen.dart';
+import 'student_notifications_screen.dart'; // Add this import
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
@@ -24,23 +25,27 @@ class _StudentDashboardState extends State<StudentDashboard> {
   List<dynamic> requests = [];
   bool isLoading = true;
   String errorMessage = '';
-  String userId = ''; 
+  String userId = '';
+  int notificationCount = 0; // For notification badge
 
   @override
   void initState() {
     super.initState();
-    fetchUserData().then((_) => fetchRequests());
+    fetchUserData().then((_) {
+      fetchRequests();
+      fetchNotificationCount();
+    });
   }
 
   Future<void> fetchUserData() async {
     try {
-      print('Fetching user data...');
-      final payload = json.decode(utf8.decode(base64.decode(widget.token.split('.')[1])));
+      final payload = json.decode(
+        utf8.decode(base64.decode(widget.token.split('.')[1]))
+      );
       final userId = payload['id'];
-      print('Decoded user ID: $userId');
 
       setState(() {
-        this.userId = userId;  // Store userId for use in fetchRequests
+        this.userId = userId;
       });
 
       final response = await http.get(
@@ -51,35 +56,27 @@ class _StudentDashboardState extends State<StudentDashboard> {
         },
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        // Add null check for 'success'
         if (data != null && data['success'] == true && data['user'] != null) {
           final user = data['user'];
-          print('User data: $user');
           setState(() {
-            studentName = '${user['first_name'] ?? 'Unknown'} ${user['last_name'] ?? ''}'.trim();  // Fallback if fields are null
+            studentName = '${user['first_name'] ?? 'Unknown'} ${user['last_name'] ?? ''}'.trim();
             studentNumber = user['student_number'] ?? 'Unknown';
           });
         } else {
-          print('User data fetch failed: success=${data['success']}, message=${data['message']}');
           setError('Failed to load user data: ${data['message'] ?? 'Unknown error'}');
         }
       } else {
         setError('Failed to load user data: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in fetchUserData: $e');
       setError('Error fetching user data: $e');
     }
   }
 
   Future<void> fetchRequests() async {
     try {
-      print('Fetching requests for userId: $userId');
       final response = await http.get(
         Uri.parse('$baseUrl/requests/$userId'), 
         headers: {
@@ -88,32 +85,47 @@ class _StudentDashboardState extends State<StudentDashboard> {
         },
       );
 
-      print('Requests response status: ${response.statusCode}');
-      print('Requests response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        // Add null check for 'success' and 'requests'
         if (data != null && data['success'] == true && data['requests'] is List) {
-          print('Requests data: ${data['requests']}');
           setState(() {
             requests = List<dynamic>.from(data['requests']);
-            isLoading = false;
           });
         } else {
-          print('Requests fetch failed: success=${data['success']}, message=${data['message']}');
           setError('Failed to load requests: ${data['message'] ?? 'Invalid data'}');
         }
       } else {
         setError('Failed to load requests: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in fetchRequests: $e');
       setError('Error fetching requests: $e');
     } finally {
       setState(() {
         isLoading = false;
       });
+    }
+  }
+
+  Future<void> fetchNotificationCount() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/notifications/view'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null && data['success'] == true && data['notifications'] is List) {
+          setState(() {
+            notificationCount = data['notifications'].length;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error fetching notification count: $e');
     }
   }
 
@@ -128,12 +140,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
   }
 
   List<dynamic> getActiveRequests() {
-    // Filter active requests: status not 'CLAIMED', 'CANCELLED', or 'REJECTED'
     List<dynamic> active = requests.where((r) => 
       r['status'] != 'CLAIMED' && r['status'] != 'CANCELLED' && r['status'] != 'REJECTED'
     ).toList();
     
-    // Sort by request_date descending (most recent first)
     active.sort((a, b) {
       DateTime dateA = DateTime.tryParse(a['request_date'] ?? '') ?? DateTime(1900);
       DateTime dateB = DateTime.tryParse(b['request_date'] ?? '') ?? DateTime(1900);
@@ -151,9 +161,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
       backgroundColor: Colors.white,
       body: Row(
         children: [
-          // ------------------------------------
           // SIDEBAR
-          // ------------------------------------
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             width: isCollapsed ? 80 : 250,
@@ -161,7 +169,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
             child: Column(
               children: [
                 const SizedBox(height: 30),
-
                 if (!isCollapsed)
                   Column(
                     children: [
@@ -212,15 +219,14 @@ class _StudentDashboardState extends State<StudentDashboard> {
                       ),
                     ),
                   ),
-
                 const SizedBox(height: 40),
-
                 Expanded(
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
                         _buildNavItem(Icons.home, "Dashboard"),
                         _buildNavItem(Icons.article, "Request"),
+                        _buildNavItem(Icons.notifications, "Notifications"),
                         _buildNavItem(Icons.search, "Tracking"),
                         _buildNavItem(Icons.history, "History"),
                         _buildNavItem(Icons.person, "Profile"),
@@ -229,17 +235,13 @@ class _StudentDashboardState extends State<StudentDashboard> {
                     ),
                   ),
                 ),
-
                 _buildNavItem(Icons.logout, "Logout"),
-
                 const SizedBox(height: 20),
               ],
             ),
           ),
 
-          // ------------------------------------
           // MAIN CONTENT
-          // ------------------------------------
           Expanded(
             child: SafeArea(
               child: Padding(
@@ -268,7 +270,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                             const SizedBox(width: 10),
                             Text(
                               "Hello, ${studentName.split(' ').first}!",
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontWeight: FontWeight.bold,
                                 fontSize: 28,
@@ -277,10 +279,47 @@ class _StudentDashboardState extends State<StudentDashboard> {
                             ),
                           ],
                         ),
-                        Image.asset(
-                          'assets/images/Req-ITLongLogo.png',
-                          height: 60,
-                          fit: BoxFit.contain,
+                        Row(
+                          children: [
+                            Stack(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.notifications, size: 30, color: Colors.black87),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => StudentNotificationsScreen(token: widget.token),
+                                      ),
+                                    ).then((_) => fetchNotificationCount());
+                                  },
+                                ),
+                                if (notificationCount > 0)
+                                  Positioned(
+                                    right: 0,
+                                    top: 0,
+                                    child: CircleAvatar(
+                                      radius: 10,
+                                      backgroundColor: Colors.red,
+                                      child: Text(
+                                        notificationCount.toString(),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(width: 10),
+                            Image.asset(
+                              'assets/images/Req-ITLongLogo.png',
+                              height: 60,
+                              fit: BoxFit.contain,
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -296,7 +335,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
                       ),
                     ),
                     const SizedBox(height: 10),
-
                     ElevatedButton(
                       onPressed: () async {
                         final result = await Navigator.push(
@@ -326,10 +364,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 25),
-
-                    // SUMMARY CARDS / OVERVIEW - Now showing list of recent active requests
                     Expanded(
                       child: Container(
                         width: double.infinity,
@@ -352,7 +387,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
                               ),
                             ),
                             const SizedBox(height: 20),
-
                             Expanded(
                               child: isLoading
                                   ? const Center(child: CircularProgressIndicator())
@@ -385,84 +419,27 @@ class _StudentDashboardState extends State<StudentDashboard> {
                                                 child: Column(
                                                   crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
-                                                    // =============================
-                                                    // ROW 1 — TABLE HEADERS
-                                                    // =============================
                                                     Container(
                                                       padding: const EdgeInsets.symmetric(vertical: 8),
                                                       child: Row(
                                                         children: const [
-                                                          Expanded(flex: 2,
-                                                              child: Text("Reference ID", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                          Expanded(flex: 2,
-                                                              child: Text("Document Type", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                          Expanded(flex: 2,
-                                                              child: Text("Date Requested", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                          Expanded(flex: 2,
-                                                              child: Text("Status", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                          Expanded(flex: 2,
-                                                              child: Text("Details", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                          Expanded(flex: 2, child: Text("Reference ID", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                          Expanded(flex: 2, child: Text("Document Type", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                          Expanded(flex: 2, child: Text("Date Requested", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                          Expanded(flex: 2, child: Text("Status", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                          Expanded(flex: 2, child: Text("Details", style: TextStyle(fontWeight: FontWeight.bold))),
                                                         ],
                                                       ),
                                                     ),
-
                                                     const Divider(),
-
-                                                    // =============================
-                                                    // ROW 2 — ROW DATA
-                                                    // =============================
                                                     Row(
                                                       crossAxisAlignment: CrossAxisAlignment.start,
                                                       children: [
-                                                        // Reference ID
-                                                        Expanded(
-                                                          flex: 2,
-                                                          child: Text(
-                                                            requestId,
-                                                            style: const TextStyle(fontSize: 13),
-                                                          ),
-                                                        ),
-
-                                                        // Document Type
-                                                        Expanded(
-                                                          flex: 2,
-                                                          child: Text(
-                                                            docNames,
-                                                            style: const TextStyle(fontSize: 13),
-                                                          ),
-                                                        ),
-
-                                                        // Date Requested
-                                                        Expanded(
-                                                          flex: 2,
-                                                          child: Text(
-                                                            req['request_date'] != null
-                                                              ? DateFormat('MMM d, yyyy').format(DateTime.parse(req['request_date']))
-                                                              : "Unknown",
-                                                            style: const TextStyle(fontSize: 13),
-                                                          ),
-                                                        ),
-
-                                                        // Status
-                                                        Expanded(
-                                                          flex: 2,
-                                                          child: Text(
-                                                            status,
-                                                            style: TextStyle(
-                                                              fontSize: 13,
-                                                              color: status == "PENDING (Payment)" ? Colors.orange : Colors.black,
-                                                            ),
-                                                          ),
-                                                        ),
-
-                                                        // Status Details
-                                                        Expanded(
-                                                          flex: 2,
-                                                          child: Text(
-                                                            req['status_details'] ?? "—",
-                                                            style: const TextStyle(fontSize: 13),
-                                                          ),
-                                                        ),
+                                                        Expanded(flex: 2, child: Text(requestId, style: const TextStyle(fontSize: 13))),
+                                                        Expanded(flex: 2, child: Text(docNames, style: const TextStyle(fontSize: 13))),
+                                                        Expanded(flex: 2, child: Text(req['request_date'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(req['request_date'])) : "Unknown", style: const TextStyle(fontSize: 13))),
+                                                        Expanded(flex: 2, child: Text(status, style: TextStyle(fontSize: 13, color: status == "PENDING (Payment)" ? Colors.orange : Colors.black))),
+                                                        Expanded(flex: 2, child: Text(req['status_details'] ?? "—", style: const TextStyle(fontSize: 13))),
                                                       ],
                                                     ),
                                                   ],
@@ -486,9 +463,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
     );
   }
 
-  // ---------------------------------
-  // SIDEBAR NAVIGATION
-  // ---------------------------------
   Widget _buildNavItem(IconData icon, String label) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -513,6 +487,13 @@ class _StudentDashboardState extends State<StudentDashboard> {
                 builder: (context) => StudentAllRequestsScreen(token: widget.token),
               ),
             );
+          } else if (label == "Notifications") {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentNotificationsScreen(token: widget.token),
+              ),
+            ).then((_) => fetchNotificationCount());
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('$label clicked')),
