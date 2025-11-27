@@ -28,15 +28,57 @@ class _StudentNotificationDetailScreenState extends State<StudentNotificationDet
   bool isCollapsed = false;
   Map<String, dynamic>? request; // Assuming 'request' is in the notification; otherwise fetch it
   bool isLoadingRequest = false;
+  String studentName = "Loading...";
+  String studentNumber = "Loading...";
+  String userId = '';
 
   @override
   void initState() {
     super.initState();
+    fetchUserData();
     // If 'request' is not directly in notification, fetch it here using request_id
     // For now, assume it's present
     request = widget.notification['request'];
     if (request == null && widget.notification['request_id'] != null) {
       fetchRequest(widget.notification['request_id']);
+    }
+  }
+
+  Future<void> fetchUserData() async {
+    try {
+      final payload = json.decode(
+        utf8.decode(base64.decode(widget.token.split('.')[1]))
+      );
+      final userId = payload['id'];
+
+      setState(() {
+        this.userId = userId;
+      });
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/$userId'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null && data['success'] == true && data['user'] != null) {
+          final user = data['user'];
+          setState(() {
+            studentName = '${user['first_name'] ?? 'Unknown'} ${user['last_name'] ?? ''}'.trim();
+            studentNumber = user['student_number'] ?? 'Unknown';
+          });
+        } else {
+          // Handle error if needed
+        }
+      } else {
+        // Handle error if needed
+      }
+    } catch (e) {
+      // Handle error if needed
     }
   }
 
@@ -71,16 +113,16 @@ class _StudentNotificationDetailScreenState extends State<StudentNotificationDet
 
   @override
   Widget build(BuildContext context) {
-    final message = widget.notification['message'] ?? 'No message';
+    // Updated: Parse the date and convert to local timezone
     final dateSent = widget.notification['date_sent'] != null
-        ? DateFormat('MMM d, yyyy hh:mm a').format(DateTime.parse(widget.notification['date_sent']))
+        ? DateFormat('MMM d, yyyy hh:mm a').format(DateTime.parse(widget.notification['date_sent']).toLocal())
         : 'Unknown';
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: Row(
         children: [
-          // SIDEBAR (mirrors other screens)
+          // SIDEBAR (mirrors dashboard)
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             width: isCollapsed ? 80 : 250,
@@ -106,15 +148,23 @@ class _StudentNotificationDetailScreenState extends State<StudentNotificationDet
                         ),
                       ),
                       const SizedBox(height: 10),
-                      const Text(
-                        "Student",
-                        style: TextStyle(
+                      Text(
+                        studentName,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontFamily: 'Montserrat',
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
                         textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        studentNumber,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontFamily: 'Montserrat',
+                          fontSize: 14,
+                        ),
                       ),
                     ],
                   )
@@ -138,10 +188,7 @@ class _StudentNotificationDetailScreenState extends State<StudentNotificationDet
                         _buildNavItem(Icons.home, "Dashboard"),
                         _buildNavItem(Icons.article, "Request"),
                         _buildNavItem(Icons.notifications, "Notifications"),
-                        _buildNavItem(Icons.search, "Tracking"),
                         _buildNavItem(Icons.history, "History"),
-                        _buildNavItem(Icons.person, "Profile"),
-                        _buildNavItem(Icons.help, "Help"),
                       ],
                     ),
                   ),
@@ -223,7 +270,7 @@ class _StudentNotificationDetailScreenState extends State<StudentNotificationDet
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            "Message: $message",
+                            "Message: ${widget.notification['message'] ?? 'No message'}",
                             style: const TextStyle(
                               fontSize: 16,
                               fontFamily: 'Montserrat',
@@ -286,7 +333,8 @@ class _StudentNotificationDetailScreenState extends State<StudentNotificationDet
                               children: [
                                 Expanded(flex: 2, child: Text(request!['reference_id'] ?? '', style: const TextStyle(fontSize: 13))),
                                 Expanded(flex: 2, child: Text((request!['documents'] as List?)?.map((d) => d['name'] as String? ?? 'Unknown').join(", ") ?? "No documents", style: const TextStyle(fontSize: 13))),
-                                Expanded(flex: 2, child: Text(request!['request_date'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(request!['request_date'])) : "Unknown", style: const TextStyle(fontSize: 13))),
+                                // Updated: Parse the request date and convert to local timezone
+                                Expanded(flex: 2, child: Text(request!['request_date'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(request!['request_date']).toLocal()) : "Unknown", style: const TextStyle(fontSize: 13))),
                                 Expanded(flex: 2, child: Text(request!['status'] ?? 'Unknown', style: TextStyle(fontSize: 13, color: request!['status'] == "PENDING (Payment)" ? Colors.orange : Colors.black))),
                                 Expanded(flex: 2, child: Text(request!['status_details'] ?? "—", style: const TextStyle(fontSize: 13))),
                               ],
@@ -322,7 +370,7 @@ class _StudentNotificationDetailScreenState extends State<StudentNotificationDet
     );
   }
 
-  // SIDEBAR NAVIGATION (mirrors other screens)
+  // SIDEBAR NAVIGATION (mirrors dashboard)
   Widget _buildNavItem(IconData icon, String label) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10),

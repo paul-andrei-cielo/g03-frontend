@@ -10,7 +10,6 @@ import 'student_dashboard.dart';
 import 'student_tracking_screen.dart';
 import 'student_notifications_screen.dart';
 
-
 const String baseUrl = 'https://g03-backend.onrender.com';
 
 class StudentAllRequestsScreen extends StatefulWidget {
@@ -35,7 +34,7 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
   void initState() {
     super.initState();
     fetchUserData().then((_) => fetchRequests());
-    fetchNotificationCount();
+    fetchUnreadNotificationCount();
   }
 
   Future<void> fetchUserData() async {
@@ -79,9 +78,8 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
         final data = json.decode(response.body);
         if (data['success'] == true && data['requests'] is List) {
           setState(() {
-            requests = List<dynamic>.from(data['requests'])
-                .where((r) => r['status'] != 'CLAIMED')
-                .toList();
+            // Removed the filter to include all requests, including completed (CLAIMED)
+            requests = List<dynamic>.from(data['requests']);
           });
         } else {
           setError('Failed to load requests: ${data['message'] ?? 'Invalid data'}');
@@ -96,10 +94,10 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
     }
   }
 
-  Future<void> fetchNotificationCount() async {
+  Future<void> fetchUnreadNotificationCount() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/notifications/view'),
+        Uri.parse('$baseUrl/notifications/unread-count'),
         headers: {
           'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
@@ -108,14 +106,18 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data != null && data['success'] == true && data['notifications'] is List) {
+        if (data != null && data['success'] == true) {
           setState(() {
-            notificationCount = data['notifications'].length;
+            notificationCount = data['unreadCount'] ?? 0;
           });
+        } else {
+          // Optional: handle error silently or log
         }
+      } else {
+        // Optional: handle error silently or log
       }
     } catch (e) {
-      print('Error fetching notification count: $e');
+      // Optional: handle error silently or log
     }
   }
 
@@ -281,44 +283,56 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
                         // RIGHT SIDE
                         Row(
                           children: [
-                            // NOTIFICATION ICON + BADGE
-                            Stack(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.notifications, size: 30, color: Colors.black87),
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            StudentNotificationsScreen(token: widget.token),
-                                      ),
-                                    ).then((_) => fetchNotificationCount());
-                                  },
-                                ),
-                                if (notificationCount > 0)
-                                  Positioned(
-                                    right: 0,
-                                    top: 0,
-                                    child: CircleAvatar(
-                                      radius: 10,
-                                      backgroundColor: Colors.red,
-                                      child: Text(
-                                        notificationCount.toString(),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
+                            // Notification Bell with Badge
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        StudentNotificationsScreen(token: widget.token),
+                                  ),
+                                ).then((_) {
+                                  // Refresh count when returning
+                                  fetchUnreadNotificationCount();
+                                });
+                              },
+                              child: Stack(
+                                children: [
+                                  Icon(
+                                    Icons.notifications,
+                                    size: 30,
+                                    color: Colors.black87,
+                                  ),
+                                  if (notificationCount > 0)
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 16,
+                                          minHeight: 16,
+                                        ),
+                                        child: Text(
+                                          notificationCount > 99 ? '99+' : notificationCount.toString(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          textAlign: TextAlign.center,
                                         ),
                                       ),
                                     ),
-                                  ),
-                              ],
+                                ],
+                              ),
                             ),
-
-                            const SizedBox(width: 10),
-
-                            // LOGO
+                            const SizedBox(width: 15),
                             Image.asset(
                               'assets/images/Req-ITLongLogo.png',
                               height: 60,
@@ -329,7 +343,7 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
                       ],
                     ),
                     const SizedBox(height: 15),
-                    const Text("All Active Requests", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+                    const Text("All Requests", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)), // Updated title to reflect all requests
                     const SizedBox(height: 10),
 
                     // Requests List
@@ -345,7 +359,7 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
                         child: isLoading
                             ? const Center(child: CircularProgressIndicator())
                             : requests.isEmpty
-                                ? const Center(child: Text("No active requests."))
+                                ? const Center(child: Text("No requests."))
                                 : ListView.builder(
                                     itemCount: requests.length,
                                     itemBuilder: (context, index) {
@@ -383,7 +397,7 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
                                                   Expanded(flex: 2, child: Text("Document Type", style: TextStyle(fontWeight: FontWeight.bold))),
                                                   Expanded(flex: 2, child: Text("Date Requested", style: TextStyle(fontWeight: FontWeight.bold))),
                                                   Expanded(flex: 2, child: Text("Status", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                  Expanded(flex: 2, child: Text("Details", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                  Expanded(flex: 2, child: Text("Remarks", style: TextStyle(fontWeight: FontWeight.bold))), // Updated header to "Remarks"
                                                   Expanded(flex: 2, child: Text("Actions", style: TextStyle(fontWeight: FontWeight.bold))),
                                                 ],
                                               ),
@@ -416,7 +430,7 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
                                                   ),
                                                   Expanded(
                                                     flex: 2,
-                                                    child: Text(req['status_details'] ?? "—", style: const TextStyle(fontSize: 13)),
+                                                    child: Text(req['remarks'] ?? "—", style: const TextStyle(fontSize: 13)), // Updated to display remarks from staff
                                                   ),
 
                                                   // Actions
@@ -494,7 +508,10 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
               MaterialPageRoute(
                 builder: (context) => StudentNotificationsScreen(token: widget.token),
               ),
-            ).then((_) => fetchNotificationCount());
+            ).then((_) {
+              // Refresh count when returning from notifications screen
+              fetchUnreadNotificationCount();
+            });
           }
         },
         child: Padding(

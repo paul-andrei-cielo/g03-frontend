@@ -63,7 +63,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
   void initState() {
     super.initState();
     fetchStudentData();
-    fetchNotificationCount();
+    fetchUnreadNotificationCount();
   }
 
   Future<void> fetchStudentData() async {
@@ -116,28 +116,28 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
     }
   }
 
-  Future<void> fetchNotificationCount() async {
-  try {
-    final response = await http.get(
-      Uri.parse('$baseUrl/notifications/view'),
-      headers: {
-        'Authorization': 'Bearer ${widget.token}',
-        'Content-Type': 'application/json',
-      },
-    );
+  Future<void> fetchUnreadNotificationCount() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/notifications/unread-count'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      if (data != null && data['success'] == true && data['notifications'] is List) {
-        setState(() {
-          notificationCount = data['notifications'].length;
-        });
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null && data['success'] == true) {
+          setState(() {
+            notificationCount = data['unreadCount'] ?? 0;
+          });
+        }
       }
+    } catch (e) {
+      print('Error fetching notification count: $e');
     }
-  } catch (e) {
-    print('Error fetching notification count: $e');
   }
-}
 
   // -------------------------
   // UI and Form Code
@@ -264,46 +264,63 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                             ),
                           ],
                         ),
-                        Row (
+                        Row(
                           children: [
-                            Stack(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.notifications, size: 30, color: Colors.black87),
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => StudentNotificationsScreen(token: widget.token),
-                                      ),
-                                    ).then((_) => fetchNotificationCount());
-                                  },
-                                ),
-                                if (notificationCount > 0)
-                                  Positioned(
-                                    right: 0,
-                                    top: 0,
-                                    child: CircleAvatar(
-                                      radius: 10,
-                                      backgroundColor: Colors.red,
-                                      child: Text(
-                                        notificationCount.toString(),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
+                            // Notification Bell with Badge
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => StudentNotificationsScreen(token: widget.token),
+                                  ),
+                                ).then((_) {
+                                  // Refresh count when returning
+                                  fetchUnreadNotificationCount();
+                                });
+                              },
+                              child: Stack(
+                                children: [
+                                  Icon(
+                                    Icons.notifications,
+                                    size: 30,
+                                    color: Colors.black87,
+                                  ),
+                                  if (notificationCount > 0)
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 16,
+                                          minHeight: 16,
+                                        ),
+                                        child: Text(
+                                          notificationCount > 99 ? '99+' : notificationCount.toString(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          textAlign: TextAlign.center,
                                         ),
                                       ),
                                     ),
-                                  ),
-                              ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 15),
+                            Image.asset(
+                              'assets/images/Req-ITLongLogo.png',
+                              height: 60,
+                              fit: BoxFit.contain,
                             ),
                           ],
-                        ),
-                        Image.asset(
-                          'assets/images/Req-ITLongLogo.png',
-                          height: 60,
-                          fit: BoxFit.contain,
                         ),
                       ],
                     ),
@@ -543,7 +560,10 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                 builder: (context) =>
                     StudentNotificationsScreen(token: widget.token),
               ),
-            ).then((_) => fetchNotificationCount());
+            ).then((_) {
+              // Refresh count when returning from notifications screen
+              fetchUnreadNotificationCount();
+            });
 
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -575,7 +595,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
     );
   }
 
-  Widget _buildStep1Form() {
+   Widget _buildStep1Form() {
     return Container(
       key: const ValueKey(1),
       padding: const EdgeInsets.all(20),

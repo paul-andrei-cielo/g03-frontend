@@ -23,11 +23,54 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
   List<dynamic> notifications = [];
   bool isLoading = true;
   String errorMessage = '';
+  String studentName = "Loading...";
+  String studentNumber = "Loading...";
+  String userId = '';
 
   @override
   void initState() {
     super.initState();
-    fetchNotifications();
+    fetchUserData().then((_) {
+      fetchNotifications();
+    });
+  }
+
+  Future<void> fetchUserData() async {
+    try {
+      final payload = json.decode(
+        utf8.decode(base64.decode(widget.token.split('.')[1]))
+      );
+      final userId = payload['id'];
+
+      setState(() {
+        this.userId = userId;
+      });
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/$userId'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null && data['success'] == true && data['user'] != null) {
+          final user = data['user'];
+          setState(() {
+            studentName = '${user['first_name'] ?? 'Unknown'} ${user['last_name'] ?? ''}'.trim();
+            studentNumber = user['student_number'] ?? 'Unknown';
+          });
+        } else {
+          setError('Failed to load user data: ${data['message'] ?? 'Unknown error'}');
+        }
+      } else {
+        setError('Failed to load user data: ${response.statusCode}');
+      }
+    } catch (e) {
+      setError('Error fetching user data: $e');
+    }
   }
 
   Future<void> fetchNotifications() async {
@@ -59,7 +102,6 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
     }
   }
 
-  // NEW: Function to mark a notification as read
   Future<void> markAsRead(String notificationId) async {
     try {
       final response = await http.put(
@@ -71,12 +113,64 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
       );
 
       if (response.statusCode == 200) {
-        // Successfully marked as read; no need to update local list here
+        setState(() {
+          final index = notifications.indexWhere((notif) => notif['_id'] == notificationId);
+          if (index != -1) {
+            notifications[index]['read'] = true;
+          }
+        });
       } else {
-        print('Failed to mark as read: ${response.body}');
+        final responseData = json.decode(response.body);
+        if (responseData['message'] == 'Notification not found or already read.') {
+          setState(() {
+            final index = notifications.indexWhere((notif) => notif['_id'] == notificationId);
+            if (index != -1) {
+              notifications[index]['read'] = true;
+            }
+          });
+        } else {
+          print('Failed to mark as read: ${response.body}');
+          setState(() {
+            final index = notifications.indexWhere((notif) => notif['_id'] == notificationId);
+            if (index != -1) {
+              notifications[index]['read'] = true;  
+            }
+          });
+        }
       }
     } catch (e) {
       print('Error marking as read: $e');
+      setState(() {
+        final index = notifications.indexWhere((notif) => notif['_id'] == notificationId);
+        if (index != -1) {
+          notifications[index]['read'] = true;  
+        }
+      });
+    }
+  }
+
+  Future<void> deleteNotification(String notificationId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/notifications/delete/$notificationId'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          notifications.removeWhere((notif) => notif['_id'] == notificationId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notification deleted successfully.')),
+        );
+      } else {
+        setError('Failed to delete notification: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      setError('Error deleting notification: $e');
     }
   }
 
@@ -122,15 +216,23 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
                         ),
                       ),
                       const SizedBox(height: 10),
-                      const Text(
-                        "Student",
-                        style: TextStyle(
+                      Text(
+                        studentName,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontFamily: 'Montserrat',
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
                         textAlign: TextAlign.center,
+                      ),
+                      Text(
+                        studentNumber,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontFamily: 'Montserrat',
+                          fontSize: 14,
+                        ),
                       ),
                     ],
                   )
@@ -226,16 +328,6 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              "Your Notifications",
-                              style: TextStyle(
-                                fontFamily: 'Montserrat',
-                                fontWeight: FontWeight.w700,
-                                fontSize: 20,
-                                color: Colors.black54,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
                             Expanded(
                               child: isLoading
                                   ? const Center(child: CircularProgressIndicator())
@@ -247,52 +339,106 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
                                             final notif = notifications[index];
                                             final message = notif['message'] ?? 'No message';
                                             final dateSent = notif['date_sent'] != null
-                                                ? DateFormat('MMM d, yyyy hh:mm a').format(DateTime.parse(notif['date_sent']))
+                                                ? (() {
+                                                    try {
+                                                      DateTime parsedDate = DateTime.parse(notif['date_sent']);
+                                                      DateTime localDate = parsedDate.toLocal();
+                                                      return DateFormat('MMM d, yyyy hh:mm a').format(localDate);
+                                                    } catch (e) {
+                                                      return 'Invalid date';
+                                                    }
+                                                  })()
                                                 : 'Unknown';
-                                            return GestureDetector(
-                                              onTap: () async {
-                                                // UPDATED: Mark as read before navigating
-                                                final notificationId = notif['_id'];  // Assuming notifications have '_id'
-                                                await markAsRead(notificationId);
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (context) => StudentNotificationDetailScreen(
-                                                      notification: notif,
-                                                      token: widget.token,
+                                            final isRead = notif['read'] ?? false;
+                                            return Container(
+                                              margin: const EdgeInsets.only(bottom: 15),
+                                              padding: const EdgeInsets.all(15),
+                                              decoration: BoxDecoration(
+                                                color: isRead ? Colors.grey.shade100 : Colors.white,
+                                                borderRadius: BorderRadius.circular(12),
+                                                border: Border.all(color: isRead ? Colors.grey.shade400 : Colors.grey.shade300),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  if (!isRead)
+                                                    Container(
+                                                      width: 8,
+                                                      height: 8,
+                                                      decoration: const BoxDecoration(
+                                                        color: Colors.red,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                    )
+                                                  else
+                                                    const SizedBox(width: 8),
+                                                  const SizedBox(width: 10),
+                                                  Expanded(
+                                                    child: GestureDetector(
+                                                      onTap: () async {
+                                                        if (!isRead) {
+                                                          final notificationId = notif['_id'];
+                                                          await markAsRead(notificationId);
+                                                        }
+                                                        Navigator.push(
+                                                          context,
+                                                          MaterialPageRoute(
+                                                            builder: (context) => StudentNotificationDetailScreen(
+                                                              notification: notif,
+                                                              token: widget.token,
+                                                            ),
+                                                          ),
+                                                        );
+                                                      },
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Text(
+                                                            message,
+                                                            style: TextStyle(
+                                                              fontSize: 14,
+                                                              fontFamily: 'Montserrat',
+                                                              fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(height: 10),
+                                                          Text(
+                                                            dateSent,
+                                                            style: const TextStyle(
+                                                              fontSize: 12,
+                                                              color: Colors.grey,
+                                                              fontFamily: 'Montserrat',
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
                                                     ),
                                                   ),
-                                                );
-                                              },
-                                              child: Container(
-                                                margin: const EdgeInsets.only(bottom: 15),
-                                                padding: const EdgeInsets.all(15),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius: BorderRadius.circular(12),
-                                                  border: Border.all(color: Colors.grey.shade300),
-                                                ),
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      message,
-                                                      style: const TextStyle(
-                                                        fontSize: 14,
-                                                        fontFamily: 'Montserrat',
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 10),
-                                                    Text(
-                                                      dateSent,
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.grey,
-                                                        fontFamily: 'Montserrat',
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
+                                                  IconButton(
+                                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                                    onPressed: () async {
+                                                      final confirm = await showDialog<bool>(
+                                                        context: context,
+                                                        builder: (context) => AlertDialog(
+                                                          title: const Text('Delete Notification'),
+                                                          content: const Text('Are you sure you want to delete this notification?'),
+                                                          actions: [
+                                                            TextButton(
+                                                              onPressed: () => Navigator.of(context).pop(false),
+                                                              child: const Text('Cancel'),
+                                                            ),
+                                                            TextButton(
+                                                              onPressed: () => Navigator.of(context).pop(true),
+                                                              child: const Text('Delete'),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      );
+                                                      if (confirm == true) {
+                                                        await deleteNotification(notif['_id']);
+                                                      }
+                                                    },
+                                                  ),
+                                                ],
                                               ),
                                             );
                                           },

@@ -33,6 +33,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
     super.initState();
     fetchUserData().then((_) {
       fetchRequests();
+      fetchUnreadNotificationCount();
     });
   }
 
@@ -102,6 +103,33 @@ class _StudentDashboardState extends State<StudentDashboard> {
       setState(() {
         isLoading = false;
       });
+    }
+  }
+
+  Future<void> fetchUnreadNotificationCount() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/notifications/unread-count'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null && data['success'] == true) {
+          setState(() {
+            notificationCount = data['unreadCount'] ?? 0;
+          });
+        } else {
+          // Optional: handle error silently or log
+        }
+      } else {
+        // Optional: handle error silently or log
+      }
+    } catch (e) {
+      // Optional: handle error silently or log
     }
   }
 
@@ -252,10 +280,63 @@ class _StudentDashboardState extends State<StudentDashboard> {
                             ),
                           ],
                         ),
-                        Image.asset(
-                          'assets/images/Req-ITLongLogo.png',
-                          height: 60,
-                          fit: BoxFit.contain,
+                        Row(
+                          children: [
+                            // Notification Bell with Badge
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => StudentNotificationsScreen(token: widget.token),
+                                  ),
+                                ).then((_) {
+                                  // Optionally refresh count when returning
+                                  fetchUnreadNotificationCount();
+                                });
+                              },
+                              child: Stack(
+                                children: [
+                                  Icon(
+                                    Icons.notifications,
+                                    size: 30,
+                                    color: Colors.black87,
+                                  ),
+                                  if (notificationCount > 0)
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 16,
+                                          minHeight: 16,
+                                        ),
+                                        child: Text(
+                                          notificationCount > 99 ? '99+' : notificationCount.toString(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 15),
+                            Image.asset(
+                              'assets/images/Req-ITLongLogo.png',
+                              height: 60,
+                              fit: BoxFit.contain,
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -375,7 +456,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                                                         Expanded(flex: 2, child: Text(docNames, style: const TextStyle(fontSize: 13))),
                                                         Expanded(flex: 2, child: Text(req['request_date'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(req['request_date'])) : "Unknown", style: const TextStyle(fontSize: 13))),
                                                         Expanded(flex: 2, child: Text(status, style: TextStyle(fontSize: 13, color: status == "PENDING (Payment)" ? Colors.orange : Colors.black))),
-                                                        Expanded(flex: 2, child: Text(req['status_details'] ?? "—", style: const TextStyle(fontSize: 13))),
+                                                        Expanded(flex: 2, child: Text(req['remarks'] ?? "—", style: const TextStyle(fontSize: 13))),
                                                       ],
                                                     ),
                                                   ],
@@ -429,7 +510,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
               MaterialPageRoute(
                 builder: (context) => StudentNotificationsScreen(token: widget.token),
               ),
-            );
+            ).then((_) {
+              // Refresh count when returning from notifications screen
+              fetchUnreadNotificationCount();
+            });
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('$label clicked')),

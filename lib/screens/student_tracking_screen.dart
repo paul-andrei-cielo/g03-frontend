@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'student_request_form.dart';
 import 'student_all_requests_screen.dart';
+import 'student_notifications_screen.dart'; // Added import for notifications screen
 import 'dart:convert'; // For json, utf8, base64
 import 'package:http/http.dart' as http; // For http
 
@@ -27,11 +28,13 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
   String studentName = "Loading...";
   String studentNumber = "Loading...";
   String userId = '';
+  int notificationCount = 0; // Added for notification count
 
   @override
   void initState() {
     super.initState();
     fetchUserData();
+    fetchUnreadNotificationCount(); // Added to fetch notification count
   }
 
   Future<void> fetchUserData() async {
@@ -67,6 +70,33 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
       }
     } catch (e) {
       setError('Error fetching user data: $e');
+    }
+  }
+
+  Future<void> fetchUnreadNotificationCount() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/notifications/unread-count'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null && data['success'] == true) {
+          setState(() {
+            notificationCount = data['unreadCount'] ?? 0;
+          });
+        } else {
+          // Optional: handle error silently or log
+        }
+      } else {
+        // Optional: handle error silently or log
+      }
+    } catch (e) {
+      // Optional: handle error silently or log
     }
   }
 
@@ -206,8 +236,16 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
             Navigator.pop(context);
           } else if (label == "History") {
             Navigator.push(context, MaterialPageRoute(builder: (context) => StudentAllRequestsScreen(token: widget.token)));
-          } else if (label == "Tracking") {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Already on Tracking')));
+          } else if (label == "Notifications") {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentNotificationsScreen(token: widget.token),
+              ),
+            ).then((_) {
+              // Refresh count when returning from notifications screen
+              fetchUnreadNotificationCount();
+            });
           } else {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$label clicked')));
           }
@@ -306,10 +344,8 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
                       children: [
                         _buildNavItem(Icons.home, "Dashboard"),
                         _buildNavItem(Icons.article, "Request"),
-                        _buildNavItem(Icons.search, "Tracking"),
+                        _buildNavItem(Icons.notifications, "Notifications"), // Mirrored nav items
                         _buildNavItem(Icons.history, "History"),
-                        _buildNavItem(Icons.person, "Profile"),
-                        _buildNavItem(Icons.help, "Help"),
                       ],
                     ),
                   ),
@@ -343,7 +379,66 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
                                 style: const TextStyle(fontFamily: 'Montserrat', fontWeight: FontWeight.bold, fontSize: 28)),
                           ],
                         ),
-                        Image.asset('assets/images/Req-ITLongLogo.png', height: 60),
+                        // RIGHT SIDE - Added notification bell with badge for uniformity
+                        Row(
+                          children: [
+                            // Notification Bell with Badge
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        StudentNotificationsScreen(token: widget.token),
+                                  ),
+                                ).then((_) {
+                                  // Refresh count when returning
+                                  fetchUnreadNotificationCount();
+                                });
+                              },
+                              child: Stack(
+                                children: [
+                                  Icon(
+                                    Icons.notifications,
+                                    size: 30,
+                                    color: Colors.black87,
+                                  ),
+                                  if (notificationCount > 0)
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 16,
+                                          minHeight: 16,
+                                        ),
+                                        child: Text(
+                                          notificationCount > 99 ? '99+' : notificationCount.toString(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 15),
+                            Image.asset(
+                              'assets/images/Req-ITLongLogo.png',
+                              height: 60,
+                              fit: BoxFit.contain,
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -352,14 +447,15 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
                       children: [
                         Text("Reference $reference | $document",
                             style: const TextStyle(fontSize: 20, fontFamily: 'Montserrat', fontWeight: FontWeight.w700)),
-                        ElevatedButton(
-                          onPressed: _cancelRequest,
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.grey,
-                              padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30))),
-                          child: const Text("Cancel Request", style: TextStyle(fontFamily: 'Montserrat', fontSize: 14, color: Colors.white)),
-                        ),
+                        if (['FOR CLEARANCE', 'FOR PAYMENT'].contains(widget.request['status']?.toUpperCase()))
+                          ElevatedButton(
+                            onPressed: _cancelRequest,
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.grey,
+                                padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30))),
+                            child: const Text("Cancel Request", style: TextStyle(fontFamily: 'Montserrat', fontSize: 14, color: Colors.white)),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 20),
