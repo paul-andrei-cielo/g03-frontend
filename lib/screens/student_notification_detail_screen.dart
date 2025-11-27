@@ -5,98 +5,82 @@ import 'dart:convert';
 import 'student_request_form.dart';
 import 'student_all_requests_screen.dart';
 import 'student_tracking_screen.dart';
-import 'student_dashboard.dart';  // For navigation back to dashboard
-import 'student_notification_detail_screen.dart';  // Add this import for the new detail screen
+import 'student_dashboard.dart';
+import 'student_notifications_screen.dart';
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
-class StudentNotificationsScreen extends StatefulWidget {
+class StudentNotificationDetailScreen extends StatefulWidget {
+  final Map<String, dynamic> notification;
   final String token;
-  const StudentNotificationsScreen({super.key, required this.token});
+
+  const StudentNotificationDetailScreen({
+    super.key,
+    required this.notification,
+    required this.token,
+  });
 
   @override
-  State<StudentNotificationsScreen> createState() => _StudentNotificationsScreenState();
+  State<StudentNotificationDetailScreen> createState() => _StudentNotificationDetailScreenState();
 }
 
-class _StudentNotificationsScreenState extends State<StudentNotificationsScreen> {
+class _StudentNotificationDetailScreenState extends State<StudentNotificationDetailScreen> {
   bool isCollapsed = false;
-  List<dynamic> notifications = [];
-  bool isLoading = true;
-  String errorMessage = '';
+  Map<String, dynamic>? request; // Assuming 'request' is in the notification; otherwise fetch it
+  bool isLoadingRequest = false;
 
   @override
   void initState() {
     super.initState();
-    fetchNotifications();
+    // If 'request' is not directly in notification, fetch it here using request_id
+    // For now, assume it's present
+    request = widget.notification['request'];
+    if (request == null && widget.notification['request_id'] != null) {
+      fetchRequest(widget.notification['request_id']);
+    }
   }
 
-  Future<void> fetchNotifications() async {
+  Future<void> fetchRequest(String requestId) async {
+    setState(() {
+      isLoadingRequest = true;
+    });
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/notifications/view'),
+        Uri.parse('$baseUrl/requests/$requestId'), // Adjust endpoint if needed
         headers: {
           'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
         },
       );
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data != null && data['success'] == true && data['notifications'] is List) {
+        if (data['success'] == true) {
           setState(() {
-            notifications = List<dynamic>.from(data['notifications']);
-            isLoading = false;
+            request = data['request'];
           });
-        } else {
-          setError('Invalid response: ${data}');
         }
-      } else {
-        setError('Failed: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      setError('Error: $e');
+      print('Error fetching request: $e');
+    } finally {
+      setState(() {
+        isLoadingRequest = false;
+      });
     }
-  }
-
-  // NEW: Function to mark a notification as read
-  Future<void> markAsRead(String notificationId) async {
-    try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/notifications/read/$notificationId'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        // Successfully marked as read; no need to update local list here
-      } else {
-        print('Failed to mark as read: ${response.body}');
-      }
-    } catch (e) {
-      print('Error marking as read: $e');
-    }
-  }
-
-  void setError(String message) {
-    setState(() {
-      errorMessage = message;
-      isLoading = false;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final message = widget.notification['message'] ?? 'No message';
+    final dateSent = widget.notification['date_sent'] != null
+        ? DateFormat('MMM d, yyyy hh:mm a').format(DateTime.parse(widget.notification['date_sent']))
+        : 'Unknown';
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Row(
         children: [
-          // SIDEBAR (mirrors dashboard)
+          // SIDEBAR (mirrors other screens)
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             width: isCollapsed ? 80 : 250,
@@ -196,7 +180,7 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
                             ),
                             const SizedBox(width: 10),
                             const Text(
-                              "Notifications",
+                              "Notification Details",
                               style: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontWeight: FontWeight.bold,
@@ -216,9 +200,53 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
 
                     const SizedBox(height: 25),
 
-                    // NOTIFICATIONS LIST
-                    Expanded(
-                      child: Container(
+                    // NOTIFICATION DETAILS
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Notification",
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 20,
+                              color: Colors.black54,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            "Message: $message",
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontFamily: 'Montserrat',
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            "Date Sent: $dateSent",
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                              fontFamily: 'Montserrat',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 25),
+
+                    // REQUEST DETAILS (mirroring dashboard's request display)
+                    if (request != null) ...[
+                      Container(
                         width: double.infinity,
                         decoration: BoxDecoration(
                           color: Colors.white,
@@ -230,7 +258,7 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              "Your Notifications",
+                              "Related Request",
                               style: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontWeight: FontWeight.w700,
@@ -239,72 +267,51 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
                               ),
                             ),
                             const SizedBox(height: 20),
-                            Expanded(
-                              child: isLoading
-                                  ? const Center(child: CircularProgressIndicator())
-                                  : notifications.isEmpty
-                                      ? const Center(child: Text("No notifications."))
-                                      : ListView.builder(
-                                          itemCount: notifications.length,
-                                          itemBuilder: (context, index) {
-                                            final notif = notifications[index];
-                                            final message = notif['message'] ?? 'No message';
-                                            final dateSent = notif['date_sent'] != null
-                                                ? DateFormat('MMM d, yyyy hh:mm a').format(DateTime.parse(notif['date_sent']))
-                                                : 'Unknown';
-                                            return GestureDetector(
-                                              onTap: () async {
-                                                // UPDATED: Mark as read before navigating
-                                                final notificationId = notif['_id'];  // Assuming notifications have '_id'
-                                                await markAsRead(notificationId);
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (context) => StudentNotificationDetailScreen(
-                                                      notification: notif,
-                                                      token: widget.token,
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                              child: Container(
-                                                margin: const EdgeInsets.only(bottom: 15),
-                                                padding: const EdgeInsets.all(15),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius: BorderRadius.circular(12),
-                                                  border: Border.all(color: Colors.grey.shade300),
-                                                ),
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      message,
-                                                      style: const TextStyle(
-                                                        fontSize: 14,
-                                                        fontFamily: 'Montserrat',
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 10),
-                                                    Text(
-                                                      dateSent,
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.grey,
-                                                        fontFamily: 'Montserrat',
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
+                            // Table-like display (similar to dashboard)
+                            Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                children: const [
+                                  Expanded(flex: 2, child: Text("Reference ID", style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Expanded(flex: 2, child: Text("Document Type", style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Expanded(flex: 2, child: Text("Date Requested", style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Expanded(flex: 2, child: Text("Status", style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Expanded(flex: 2, child: Text("Details", style: TextStyle(fontWeight: FontWeight.bold))),
+                                ],
+                              ),
+                            ),
+                            const Divider(),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(flex: 2, child: Text(request!['reference_id'] ?? '', style: const TextStyle(fontSize: 13))),
+                                Expanded(flex: 2, child: Text((request!['documents'] as List?)?.map((d) => d['name'] as String? ?? 'Unknown').join(", ") ?? "No documents", style: const TextStyle(fontSize: 13))),
+                                Expanded(flex: 2, child: Text(request!['request_date'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(request!['request_date'])) : "Unknown", style: const TextStyle(fontSize: 13))),
+                                Expanded(flex: 2, child: Text(request!['status'] ?? 'Unknown', style: TextStyle(fontSize: 13, color: request!['status'] == "PENDING (Payment)" ? Colors.orange : Colors.black))),
+                                Expanded(flex: 2, child: Text(request!['status_details'] ?? "—", style: const TextStyle(fontSize: 13))),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            ElevatedButton(
+                              onPressed: () {
+                                // Navigate to tracking screen for this request
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => StudentTrackingScreen(token: widget.token, request: request!),
+                                  ),
+                                );
+                              },
+                              child: const Text("View Full Tracking"),
                             ),
                           ],
                         ),
                       ),
-                    ),
+                    ] else if (isLoadingRequest) ...[
+                      const Center(child: CircularProgressIndicator()),
+                    ] else ...[
+                      const Text("No related request found."),
+                    ],
                   ],
                 ),
               ),
@@ -315,7 +322,7 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
     );
   }
 
-  // SIDEBAR NAVIGATION (mirrors dashboard)
+  // SIDEBAR NAVIGATION (mirrors other screens)
   Widget _buildNavItem(IconData icon, String label) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -346,8 +353,12 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
               ),
             );
           } else if (label == "Notifications") {
-            // Already on this screen, do nothing or refresh
-            fetchNotifications();
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentNotificationsScreen(token: widget.token),
+              ),
+            );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('$label clicked')),

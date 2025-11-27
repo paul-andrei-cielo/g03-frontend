@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'student_request_form.dart';
 import 'student_all_requests_screen.dart';
 import 'student_tracking_screen.dart';
-import 'student_notifications_screen.dart'; // Add this import
+import 'student_notifications_screen.dart'; // Keep this if you still want sidebar navigation to notifications
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
@@ -26,14 +26,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
   bool isLoading = true;
   String errorMessage = '';
   String userId = '';
-  int notificationCount = 0; // For notification badge
 
   @override
   void initState() {
     super.initState();
     fetchUserData().then((_) {
       fetchRequests();
-      fetchNotificationCount();
     });
   }
 
@@ -103,29 +101,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
       setState(() {
         isLoading = false;
       });
-    }
-  }
-
-  Future<void> fetchNotificationCount() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/notifications/view'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data != null && data['success'] == true && data['notifications'] is List) {
-          setState(() {
-            notificationCount = data['notifications'].length;
-          });
-        }
-      }
-    } catch (e) {
-      print('Error fetching notification count: $e');
     }
   }
 
@@ -279,47 +254,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
                             ),
                           ],
                         ),
-                        Row(
-                          children: [
-                            Stack(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.notifications, size: 30, color: Colors.black87),
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => StudentNotificationsScreen(token: widget.token),
-                                      ),
-                                    ).then((_) => fetchNotificationCount());
-                                  },
-                                ),
-                                if (notificationCount > 0)
-                                  Positioned(
-                                    right: 0,
-                                    top: 0,
-                                    child: CircleAvatar(
-                                      radius: 10,
-                                      backgroundColor: Colors.red,
-                                      child: Text(
-                                        notificationCount.toString(),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(width: 10),
-                            Image.asset(
-                              'assets/images/Req-ITLongLogo.png',
-                              height: 60,
-                              fit: BoxFit.contain,
-                            ),
-                          ],
+                        Image.asset(
+                          'assets/images/Req-ITLongLogo.png',
+                          height: 60,
+                          fit: BoxFit.contain,
                         ),
                       ],
                     ),
@@ -493,7 +431,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
               MaterialPageRoute(
                 builder: (context) => StudentNotificationsScreen(token: widget.token),
               ),
-            ).then((_) => fetchNotificationCount());
+            );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('$label clicked')),
