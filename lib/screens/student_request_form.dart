@@ -4,6 +4,7 @@ import 'package:registrar_app/screens/student_dashboard.dart';
 import 'request_summary_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'student_notifications_screen.dart';
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
@@ -27,6 +28,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
   String studentName = "Loading...";
   String studentNumber = "Loading...";
   String studentId = "";
+  int notificationCount = 0;
 
   final TextEditingController _purposeController = TextEditingController();
 
@@ -61,6 +63,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
   void initState() {
     super.initState();
     fetchStudentData();
+    fetchNotificationCount();
   }
 
   Future<void> fetchStudentData() async {
@@ -112,6 +115,29 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
       throw Exception('Server error: ${response.statusCode}');
     }
   }
+
+  Future<void> fetchNotificationCount() async {
+  try {
+    final response = await http.get(
+      Uri.parse('$baseUrl/notifications/view'),
+      headers: {
+        'Authorization': 'Bearer ${widget.token}',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data != null && data['success'] == true && data['notifications'] is List) {
+        setState(() {
+          notificationCount = data['notifications'].length;
+        });
+      }
+    }
+  } catch (e) {
+    print('Error fetching notification count: $e');
+  }
+}
 
   // -------------------------
   // UI and Form Code
@@ -188,10 +214,8 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                       children: [
                         _buildNavItem(Icons.home, "Dashboard"),
                         _buildNavItem(Icons.article, "Request"),
-                        _buildNavItem(Icons.search, "Tracking"),
+                        _buildNavItem(Icons.notifications, "Notifications"),
                         _buildNavItem(Icons.history, "History"),
-                        _buildNavItem(Icons.person, "Profile"),
-                        _buildNavItem(Icons.help, "Help"),
                       ],
                     ),
                   ),
@@ -240,6 +264,42 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                             ),
                           ],
                         ),
+                        Row (
+                          children: [
+                            Stack(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.notifications, size: 30, color: Colors.black87),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => StudentNotificationsScreen(token: widget.token),
+                                      ),
+                                    ).then((_) => fetchNotificationCount());
+                                  },
+                                ),
+                                if (notificationCount > 0)
+                                  Positioned(
+                                    right: 0,
+                                    top: 0,
+                                    child: CircleAvatar(
+                                      radius: 10,
+                                      backgroundColor: Colors.red,
+                                      child: Text(
+                                        notificationCount.toString(),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
                         Image.asset(
                           'assets/images/Req-ITLongLogo.png',
                           height: 60,
@@ -280,6 +340,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.grey[500],
+                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(25),
@@ -293,6 +354,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                             onPressed: _submitRequest,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.red[900],
+                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(25),
@@ -309,6 +371,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.red[900],
+                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(25),
@@ -451,6 +514,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
         onTap: () {
           if (label == "Logout") {
             Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+
           } else if (label == "Dashboard") {
             Navigator.push(
               context,
@@ -458,8 +522,12 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                 builder: (context) => StudentDashboard(token: widget.token),
               ),
             );
+
           } else if (label == "Request") {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are already on the Request page')));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('You are already on the Request page')),
+            );
+
           } else if (label == "History") {
             Navigator.push(
               context,
@@ -467,8 +535,20 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                 builder: (context) => StudentAllRequestsScreen(token: widget.token),
               ),
             );
+
+          } else if (label == "Notifications") {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    StudentNotificationsScreen(token: widget.token),
+              ),
+            ).then((_) => fetchNotificationCount());
+
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$label clicked')));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('$label clicked')),
+            );
           }
         },
         child: Padding(

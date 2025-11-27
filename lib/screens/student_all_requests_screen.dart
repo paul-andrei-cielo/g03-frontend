@@ -8,6 +8,8 @@ import 'student_request_form.dart';
 import 'edit_request_screen.dart';
 import 'student_dashboard.dart';
 import 'student_tracking_screen.dart';
+import 'student_notifications_screen.dart';
+
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
@@ -27,11 +29,13 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
   bool isLoading = true;
   String errorMessage = '';
   String userId = '';
+  int notificationCount = 0;
 
   @override
   void initState() {
     super.initState();
     fetchUserData().then((_) => fetchRequests());
+    fetchNotificationCount();
   }
 
   Future<void> fetchUserData() async {
@@ -89,6 +93,29 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
       setError('Error fetching requests: $e');
     } finally {
       setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> fetchNotificationCount() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/notifications/view'),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null && data['success'] == true && data['notifications'] is List) {
+          setState(() {
+            notificationCount = data['notifications'].length;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error fetching notification count: $e');
     }
   }
 
@@ -202,10 +229,8 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
                       children: [
                         _buildNavItem(Icons.home, "Dashboard"),
                         _buildNavItem(Icons.article, "Request"),
-                        _buildNavItem(Icons.search, "Tracking"),
+                        _buildNavItem(Icons.notifications, "Notifications"),
                         _buildNavItem(Icons.history, "History"),
-                        _buildNavItem(Icons.person, "Profile"),
-                        _buildNavItem(Icons.help, "Help"),
                       ],
                     ),
                   ),
@@ -227,18 +252,80 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
+                        // LEFT SIDE
                         Row(
                           children: [
                             IconButton(
-                              icon: Icon(isCollapsed ? Icons.menu_open : Icons.menu, size: 30, color: Colors.black87),
-                              onPressed: () => setState(() => isCollapsed = !isCollapsed),
+                              icon: Icon(
+                                isCollapsed ? Icons.menu_open : Icons.menu,
+                                size: 30,
+                                color: Colors.black87,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  isCollapsed = !isCollapsed;
+                                });
+                              },
                             ),
                             const SizedBox(width: 10),
-                            Text("Hello, ${studentName.split(' ').first}!",
-                                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                            Text(
+                              "Hello, ${studentName.split(' ').first}!",
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ],
                         ),
-                        Image.asset('assets/images/Req-ITLongLogo.png', height: 60, fit: BoxFit.contain),
+
+                        // RIGHT SIDE
+                        Row(
+                          children: [
+                            // NOTIFICATION ICON + BADGE
+                            Stack(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.notifications, size: 30, color: Colors.black87),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            StudentNotificationsScreen(token: widget.token),
+                                      ),
+                                    ).then((_) => fetchNotificationCount());
+                                  },
+                                ),
+                                if (notificationCount > 0)
+                                  Positioned(
+                                    right: 0,
+                                    top: 0,
+                                    child: CircleAvatar(
+                                      radius: 10,
+                                      backgroundColor: Colors.red,
+                                      child: Text(
+                                        notificationCount.toString(),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+
+                            const SizedBox(width: 10),
+
+                            // LOGO
+                            Image.asset(
+                              'assets/images/Req-ITLongLogo.png',
+                              height: 60,
+                              fit: BoxFit.contain,
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 15),
@@ -381,7 +468,7 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
       height: 32,
       child: ElevatedButton(
         onPressed: onPressed,
-        style: ElevatedButton.styleFrom(backgroundColor: color, padding: const EdgeInsets.symmetric(horizontal: 8)),
+        style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 8)),
         child: Text(label, style: const TextStyle(fontSize: 12)),
       ),
     );
@@ -401,6 +488,13 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
             Navigator.push(context, MaterialPageRoute(builder: (_) => StudentDashboard(token: widget.token)));
           } else if (label == "History") {
             fetchRequests();
+          } else if (label == "Notifications") {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentNotificationsScreen(token: widget.token),
+              ),
+            ).then((_) => fetchNotificationCount());
           }
         },
         child: Padding(

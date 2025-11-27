@@ -221,6 +221,7 @@ class _RequestSummaryScreenState extends State<RequestSummaryScreen> {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red[900],
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(25),

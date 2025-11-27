@@ -345,8 +345,6 @@ class _AllRequestsScreenState extends State<AllRequestsScreen> {
                       ),
                     );
                   }),
-
-                  _navItem(Icons.person, "Profile"),
                 ],
               ),
             ),
