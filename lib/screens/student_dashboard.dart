@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'student_request_form.dart';
 import 'student_all_requests_screen.dart';
 import 'student_tracking_screen.dart';
-import 'student_notifications_screen.dart'; // Keep this if you still want sidebar navigation to notifications
+import 'student_notifications_screen.dart';
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
@@ -26,6 +26,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
   bool isLoading = true;
   String errorMessage = '';
   String userId = '';
+  int notificationCount = 0;
 
   @override
   void initState() {
@@ -199,13 +200,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        _buildNavItem(Icons.home, "Dashboard"),
+                        _buildNavItem(Icons.home, "Dashboard",),
                         _buildNavItem(Icons.article, "Request"),
                         _buildNavItem(Icons.notifications, "Notifications"),
-                        _buildNavItem(Icons.search, "Tracking"),
                         _buildNavItem(Icons.history, "History"),
-                        _buildNavItem(Icons.person, "Profile"),
-                        _buildNavItem(Icons.help, "Help"),
                       ],
                     ),
                   ),

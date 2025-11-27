@@ -266,15 +266,6 @@ class _RfidClaimScreenState extends State<RfidClaimScreen> {
                           );
                         }),
                         _navItem(Icons.rss_feed, "RFID Claim", isActive: true),
-                        _navItem(Icons.person, "Profile", onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  RegistrarProfileScreen(token: widget.token),
-                            ),
-                          );
-                        }),
                       ],
                     ),
                   ),

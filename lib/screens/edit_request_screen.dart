@@ -354,6 +354,7 @@ class _EditRequestScreenState extends State<EditRequestScreen> {
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.grey[500],
+                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(25),
@@ -367,6 +368,7 @@ class _EditRequestScreenState extends State<EditRequestScreen> {
                             onPressed: updateRequest,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.red[900],
+                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(25),
@@ -383,6 +385,7 @@ class _EditRequestScreenState extends State<EditRequestScreen> {
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.red[900],
+                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(25),

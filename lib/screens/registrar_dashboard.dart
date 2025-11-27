@@ -185,7 +185,6 @@ class _RegistrarDashboardState extends State<RegistrarDashboard> {
                             ),
                           );
                         }),
-                        _buildNavItem(Icons.person, "Profile"),
                       ],
                     ),
                   ),
