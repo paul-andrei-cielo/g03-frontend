@@ -9,6 +9,7 @@ import 'edit_request_screen.dart';
 import 'student_dashboard.dart';
 import 'student_tracking_screen.dart';
 import 'student_notifications_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
@@ -453,7 +454,23 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
                                                           _actionButton("Cancel", Colors.orange, () => cancelRequest(internalId)),
                                                         _actionButton("Delete", Colors.red, () => deleteRequest(internalId)),
                                                         if (status == 'FOR PAYMENT')
-                                                          _actionButton("Upload", Colors.green, () => uploadProofOfPayment(requestId)),
+                                                          _actionButton("Upload", Colors.green, () async {
+                                                            const url = 'https://docs.google.com/forms/d/e/1FAIpQLSfmMOI9nncHfwbY0Cxjt4p3XFBSYN-0ly4RV8Wiwjs4kruU1Q/viewform';
+                                                            try {
+                                                              final uri = Uri.parse(url);
+                                                              if (await canLaunchUrl(uri)) {
+                                                                await launchUrl(uri, mode: LaunchMode.externalApplication); 
+                                                              } else {
+                                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                                  const SnackBar(content: Text('Could not launch the form. Please check the URL.')),
+                                                                );
+                                                              }
+                                                            } catch (e) {
+                                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                                SnackBar(content: Text('Error launching form: $e')),
+                                                              );
+                                                            }
+                                                          }),
                                                       ],
                                                     ),
                                                   ),

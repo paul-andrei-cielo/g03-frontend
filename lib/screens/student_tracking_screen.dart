@@ -5,6 +5,7 @@ import 'student_all_requests_screen.dart';
 import 'student_notifications_screen.dart'; // Added import for notifications screen
 import 'dart:convert'; // For json, utf8, base64
 import 'package:http/http.dart' as http; // For http
+import 'package:url_launcher/url_launcher.dart';
 
 const baseUrl = 'https://g03-backend.onrender.com';
 
@@ -498,7 +499,16 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
                                         Padding(
                                           padding: const EdgeInsets.only(top: 10),
                                           child: ElevatedButton(
-                                            onPressed: () {},
+                                            onPressed: () async {
+                                              const url = 'https://docs.google.com/forms/d/e/1FAIpQLSfmMOI9nncHfwbY0Cxjt4p3XFBSYN-0ly4RV8Wiwjs4kruU1Q/viewform';
+                                              if (await canLaunchUrl(Uri.parse(url))) {
+                                                await launchUrl(Uri.parse(url));
+                                              } else {
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  const SnackBar(content: Text('Could not launch the form')),
+                                                );
+                                              }
+                                            },
                                             style: ElevatedButton.styleFrom(
                                                 backgroundColor: Colors.grey.shade300,
                                                 foregroundColor: Colors.black,

@@ -154,8 +154,11 @@ class _StaffViewRequestScreenState extends State<StaffViewRequestScreen> {
   Widget build(BuildContext context) {
     final student = widget.request['student_id'] ?? {};
     final documents = widget.request['documents'] as List<dynamic>? ?? [];
-    final documentNames =
-        documents.map((doc) => doc['name']?.toString() ?? 'Unnamed').toList();
+    final documentDetails = documents.map((doc) {
+      final name = doc['name']?.toString() ?? 'Unnamed';
+      final copies = doc['copies']?.toString() ?? '1';
+      return '$name ($copies)';
+    }).toList();
 
     final referenceId = widget.request['reference_id']?.toString() ?? 'N/A';
     final studentNumber = student['student_number']?.toString() ?? 'N/A';
@@ -251,8 +254,8 @@ class _StaffViewRequestScreenState extends State<StaffViewRequestScreen> {
                                 _buildDetailRow(
                                   Icons.description,
                                   'Documents Requested',
-                                  documentNames.isNotEmpty
-                                      ? documentNames.join(', ')
+                                  documentDetails.isNotEmpty
+                                      ? documentDetails.join(', ')
                                       : 'None',
                                 ),
                                 const SizedBox(height: 15),
