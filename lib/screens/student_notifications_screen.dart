@@ -151,7 +151,7 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
 
   Future<void> deleteNotification(String notificationId) async {
     try {
-      final response = await http.delete(
+      final response = await http.put(
         Uri.parse('$baseUrl/notifications/delete/$notificationId'),
         headers: {
           'Authorization': 'Bearer ${widget.token}',
@@ -373,43 +373,46 @@ class _StudentNotificationsScreenState extends State<StudentNotificationsScreen>
                                                     const SizedBox(width: 8),
                                                   const SizedBox(width: 10),
                                                   Expanded(
-                                                    child: GestureDetector(
-                                                      onTap: () async {
-                                                        if (!isRead) {
-                                                          final notificationId = notif['_id'];
-                                                          await markAsRead(notificationId);
-                                                        }
-                                                        Navigator.push(
-                                                          context,
-                                                          MaterialPageRoute(
-                                                            builder: (context) => StudentNotificationDetailScreen(
-                                                              notification: notif,
-                                                              token: widget.token,
+                                                    child: MouseRegion(
+                                                      cursor: SystemMouseCursors.click,
+                                                      child: GestureDetector(
+                                                        onTap: () async {
+                                                          if (!isRead) {
+                                                            final notificationId = notif['_id'];
+                                                            await markAsRead(notificationId);
+                                                          }
+                                                          Navigator.push(
+                                                            context,
+                                                            MaterialPageRoute(
+                                                              builder: (context) => StudentNotificationDetailScreen(
+                                                                notification: notif,
+                                                                token: widget.token,
+                                                              ),
                                                             ),
-                                                          ),
-                                                        );
-                                                      },
-                                                      child: Column(
-                                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                                        children: [
-                                                          Text(
-                                                            message,
-                                                            style: TextStyle(
-                                                              fontSize: 14,
-                                                              fontFamily: 'Montserrat',
-                                                              fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                                                          );
+                                                        },
+                                                        child: Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          children: [
+                                                            Text(
+                                                              message,
+                                                              style: TextStyle(
+                                                                fontSize: 14,
+                                                                fontFamily: 'Montserrat',
+                                                                fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                                                              ),
                                                             ),
-                                                          ),
-                                                          const SizedBox(height: 10),
-                                                          Text(
-                                                            dateSent,
-                                                            style: const TextStyle(
-                                                              fontSize: 12,
-                                                              color: Colors.grey,
-                                                              fontFamily: 'Montserrat',
+                                                            const SizedBox(height: 10),
+                                                            Text(
+                                                              dateSent,
+                                                              style: const TextStyle(
+                                                                fontSize: 12,
+                                                                color: Colors.grey,
+                                                                fontFamily: 'Montserrat',
+                                                              ),
                                                             ),
-                                                          ),
-                                                        ],
+                                                          ],
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
