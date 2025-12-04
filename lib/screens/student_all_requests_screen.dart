@@ -452,7 +452,8 @@ class _StudentAllRequestsScreenState extends State<StudentAllRequestsScreen> {
                                                           }),
                                                         if (status == 'FOR CLEARANCE' || status == 'FOR PAYMENT')
                                                           _actionButton("Cancel", Colors.orange, () => cancelRequest(internalId)),
-                                                        _actionButton("Delete", Colors.red, () => deleteRequest(internalId)),
+                                                        if (status == 'CLAIMED' || status == 'REJECTED' || status == 'CANCELLED')
+                                                          _actionButton("Delete", Colors.red, () => deleteRequest(internalId)),
                                                         if (status == 'FOR PAYMENT')
                                                           _actionButton("Upload", Colors.green, () async {
                                                             const url = 'https://docs.google.com/forms/d/e/1FAIpQLSfmMOI9nncHfwbY0Cxjt4p3XFBSYN-0ly4RV8Wiwjs4kruU1Q/viewform';
