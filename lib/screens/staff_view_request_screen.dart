@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'registrar_dashboard.dart';
 import 'staff_all_requests_screen.dart';
-import 'registrar_profile_screen.dart';
 import 'rfid_claim_screen.dart';
 
 const String baseUrl = 'https://g03-backend.onrender.com';
@@ -389,15 +388,6 @@ class _StaffViewRequestScreenState extends State<StaffViewRequestScreen> {
                       MaterialPageRoute(
                         builder: (_) =>
                             RfidClaimScreen(token: widget.token),
-                      ),
-                    );
-                  }),
-                  _navItem(Icons.person, "Profile", onTap: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            RegistrarProfileScreen(token: widget.token),
                       ),
                     );
                   }),

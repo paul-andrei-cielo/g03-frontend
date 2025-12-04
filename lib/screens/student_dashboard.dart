@@ -159,88 +159,120 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 800;
     final activeRequests = getActiveRequests();
 
     return Scaffold(
       backgroundColor: Colors.white,
+      drawer: isMobile
+      ? Drawer(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              DrawerHeader(
+                decoration: BoxDecoration(color: Colors.red[900]),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      radius: 35,
+                      backgroundImage: AssetImage('assets/images/Req-ITLogo.png'),
+                    ),
+                    SizedBox(height: 10),
+                    Text(studentName,
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text(studentNumber, style: TextStyle(color: Colors.white70)),
+                  ],
+                ),
+              ),
+              _drawerNavItem(Icons.home, "Dashboard"),
+              _drawerNavItem(Icons.article, "Request"),
+              _drawerNavItem(Icons.notifications, "Notifications"),
+              _drawerNavItem(Icons.history, "History"),
+              _drawerNavItem(Icons.logout, "Logout"),
+            ],
+          ),
+        )
+      : null,
       body: Row(
         children: [
           // SIDEBAR
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            width: isCollapsed ? 80 : 250,
-            color: Colors.red[900],
-            child: Column(
-              children: [
-                const SizedBox(height: 30),
-                if (!isCollapsed)
-                  Column(
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                        ),
-                        child: ClipOval(
-                          child: Image.asset(
-                            'assets/images/Req-ITLogo.png',
-                            fit: BoxFit.cover,
+          if (!isMobile)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: isCollapsed ? 80 : 250,
+              color: Colors.red[900],
+              child: Column(
+                children: [
+                  const SizedBox(height: 30),
+                  if (!isCollapsed)
+                    Column(
+                      children: [
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white,
+                          ),
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/images/Req-ITLogo.png',
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        studentName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontFamily: 'Montserrat',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                        const SizedBox(height: 10),
+                        Text(
+                          studentName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontFamily: 'Montserrat',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        studentNumber,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontFamily: 'Montserrat',
-                          fontSize: 14,
+                        Text(
+                          studentNumber,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontFamily: 'Montserrat',
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
-                    ],
-                  )
-                else
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/images/Req-ITLogo.png',
-                        width: 45,
-                        height: 45,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 40),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        _buildNavItem(Icons.home, "Dashboard",),
-                        _buildNavItem(Icons.article, "Request"),
-                        _buildNavItem(Icons.notifications, "Notifications"),
-                        _buildNavItem(Icons.history, "History"),
                       ],
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/Req-ITLogo.png',
+                          width: 45,
+                          height: 45,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 40),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          _buildNavItem(Icons.home, "Dashboard",),
+                          _buildNavItem(Icons.article, "Request"),
+                          _buildNavItem(Icons.notifications, "Notifications"),
+                          _buildNavItem(Icons.history, "History"),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                _buildNavItem(Icons.logout, "Logout"),
-                const SizedBox(height: 20),
-              ],
+                  _buildNavItem(Icons.logout, "Logout"),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
-          ),
 
           // MAIN CONTENT
           Expanded(
@@ -253,36 +285,46 @@ class _StudentDashboardState extends State<StudentDashboard> {
                     // HEADER
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
+                        // LEFT SIDE — Menu + Greeting
                         Row(
                           children: [
-                            IconButton(
-                              icon: Icon(
-                                isCollapsed ? Icons.menu_open : Icons.menu,
-                                size: 30,
-                                color: Colors.black87,
+                            if (!isMobile)
+                              IconButton(
+                                icon: Icon(
+                                  isCollapsed ? Icons.menu_open : Icons.menu,
+                                  size: 30,
+                                ),
+                                onPressed: () => setState(() => isCollapsed = !isCollapsed),
+                              )
+                            else
+                              Builder(
+                                builder: (context) {
+                                  return IconButton(
+                                    icon: const Icon(Icons.menu, size: 26), 
+                                    onPressed: () => Scaffold.of(context).openDrawer(),
+                                  );
+                                },
                               ),
-                              onPressed: () {
-                                setState(() {
-                                  isCollapsed = !isCollapsed;
-                                });
-                              },
-                            ),
+
                             const SizedBox(width: 10),
+
                             Text(
                               "Hello, ${studentName.split(' ').first}!",
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontWeight: FontWeight.bold,
-                                fontSize: 28,
+                                fontSize: isMobile ? 20 : 28,
                                 color: Colors.black87,
                               ),
                             ),
                           ],
                         ),
+
+                        // RIGHT SIDE — Notifications + Logo
                         Row(
                           children: [
-                            // Notification Bell with Badge
                             GestureDetector(
                               onTap: () {
                                 Navigator.push(
@@ -290,22 +332,21 @@ class _StudentDashboardState extends State<StudentDashboard> {
                                   MaterialPageRoute(
                                     builder: (context) => StudentNotificationsScreen(token: widget.token),
                                   ),
-                                ).then((_) {
-                                  // Optionally refresh count when returning
-                                  fetchUnreadNotificationCount();
-                                });
+                                ).then((_) => fetchUnreadNotificationCount());
                               },
                               child: Stack(
+                                clipBehavior: Clip.none,
                                 children: [
                                   Icon(
                                     Icons.notifications,
-                                    size: 30,
+                                    size: isMobile ? 24 : 30,
                                     color: Colors.black87,
                                   ),
+
                                   if (notificationCount > 0)
                                     Positioned(
-                                      right: 0,
-                                      top: 0,
+                                      right: -2,
+                                      top: -2,
                                       child: Container(
                                         padding: const EdgeInsets.all(2),
                                         decoration: BoxDecoration(
@@ -313,14 +354,14 @@ class _StudentDashboardState extends State<StudentDashboard> {
                                           borderRadius: BorderRadius.circular(10),
                                         ),
                                         constraints: const BoxConstraints(
-                                          minWidth: 16,
-                                          minHeight: 16,
+                                          minWidth: 14,
+                                          minHeight: 14,
                                         ),
                                         child: Text(
                                           notificationCount > 99 ? '99+' : notificationCount.toString(),
                                           style: const TextStyle(
                                             color: Colors.white,
-                                            fontSize: 10,
+                                            fontSize: 9,
                                             fontWeight: FontWeight.bold,
                                           ),
                                           textAlign: TextAlign.center,
@@ -330,10 +371,14 @@ class _StudentDashboardState extends State<StudentDashboard> {
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 15),
+
+                            SizedBox(width: isMobile ? 10 : 20),
+
                             Image.asset(
-                              'assets/images/Req-ITLongLogo.png',
-                              height: 60,
+                              isMobile
+                                  ? 'assets/images/Req-ITLogo.png'
+                                  : 'assets/images/Req-ITLongLogo.png',
+                              height: isMobile ? 35 : 60,
                               fit: BoxFit.contain,
                             ),
                           ],
@@ -421,7 +466,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
                                                 Navigator.push(
                                                   context,
                                                   MaterialPageRoute(
-                                                    builder: (context) => StudentTrackingScreen(token: widget.token, request: req),
+                                                    builder: (context) => StudentTrackingScreen(
+                                                      token: widget.token,
+                                                      request: req,
+                                                    ),
                                                   ),
                                                 );
                                               },
@@ -433,32 +481,99 @@ class _StudentDashboardState extends State<StudentDashboard> {
                                                   borderRadius: BorderRadius.circular(12),
                                                   border: Border.all(color: Colors.grey.shade300),
                                                 ),
+
                                                 child: Column(
                                                   crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
-                                                    Container(
-                                                      padding: const EdgeInsets.symmetric(vertical: 8),
-                                                      child: Row(
-                                                        children: const [
-                                                          Expanded(flex: 2, child: Text("Reference ID", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                          Expanded(flex: 2, child: Text("Document Type", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                          Expanded(flex: 2, child: Text("Date Requested", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                          Expanded(flex: 2, child: Text("Status", style: TextStyle(fontWeight: FontWeight.bold))),
-                                                          Expanded(flex: 2, child: Text("Details", style: TextStyle(fontWeight: FontWeight.bold))),
+
+                                                    // ---------------------------
+                                                    // DESKTOP HEADER ROW (hidden on mobile)
+                                                    // ---------------------------
+                                                    if (!isMobile)
+                                                      Column(
+                                                        children: [
+                                                          Row(
+                                                            children: const [
+                                                              Expanded(flex: 2, child: Text("Reference ID", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                              Expanded(flex: 2, child: Text("Document Type", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                              Expanded(flex: 2, child: Text("Date Requested", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                              Expanded(flex: 2, child: Text("Status", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                              Expanded(flex: 2, child: Text("Details", style: TextStyle(fontWeight: FontWeight.bold))),
+                                                            ],
+                                                          ),
+                                                          const Divider(),
                                                         ],
                                                       ),
-                                                    ),
-                                                    const Divider(),
-                                                    Row(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      children: [
-                                                        Expanded(flex: 2, child: Text(requestId, style: const TextStyle(fontSize: 13))),
-                                                        Expanded(flex: 2, child: Text(docNames, style: const TextStyle(fontSize: 13))),
-                                                        Expanded(flex: 2, child: Text(req['request_date'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(req['request_date'])) : "Unknown", style: const TextStyle(fontSize: 13))),
-                                                        Expanded(flex: 2, child: Text(status, style: TextStyle(fontSize: 13, color: status == "PENDING (Payment)" ? Colors.orange : Colors.black))),
-                                                        Expanded(flex: 2, child: Text(req['remarks'] ?? "—", style: const TextStyle(fontSize: 13))),
-                                                      ],
-                                                    ),
+
+                                                    // ---------------------------
+                                                    // MOBILE LAYOUT (card style)
+                                                    // ---------------------------
+                                                    if (isMobile)
+                                                      Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Text("Reference ID: $requestId",
+                                                              style: const TextStyle(fontWeight: FontWeight.bold)),
+
+                                                          const SizedBox(height: 3),
+                                                          Text("Document Type: $docNames",
+                                                              style: const TextStyle(fontSize: 14)),
+
+                                                          const SizedBox(height: 3),
+                                                          Text(
+                                                            "Date Requested: ${req['request_date'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(req['request_date'])) : "Unknown"}",
+                                                            style: const TextStyle(fontSize: 14),
+                                                          ),
+
+                                                          const SizedBox(height: 3),
+                                                          Text("Status: $status",
+                                                            style: TextStyle(
+                                                              fontSize: 14,
+                                                              fontWeight: FontWeight.w600,
+                                                              color: status == "PENDING (Payment)"
+                                                                  ? Colors.orange
+                                                                  : Colors.black,
+                                                            ),
+                                                          ),
+
+                                                          const SizedBox(height: 3),
+                                                          Text("Remarks: ${req['remarks'] ?? "—"}",
+                                                            style: const TextStyle(fontSize: 14),
+                                                          ),
+                                                        ],
+                                                      ),
+
+                                                    // ---------------------------
+                                                    // DESKTOP ROW LAYOUT
+                                                    // ---------------------------
+                                                    if (!isMobile)
+                                                      Row(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Expanded(flex: 2, child: Text(requestId)),
+                                                          Expanded(flex: 2, child: Text(docNames)),
+                                                          Expanded(
+                                                            flex: 2,
+                                                            child: Text(
+                                                              req['request_date'] != null
+                                                                  ? DateFormat('MMM d, yyyy')
+                                                                      .format(DateTime.parse(req['request_date']))
+                                                                  : "Unknown",
+                                                            ),
+                                                          ),
+                                                          Expanded(
+                                                            flex: 2,
+                                                            child: Text(
+                                                              status,
+                                                              style: TextStyle(
+                                                                color:
+                                                                    status == "PENDING (Payment)" ? Colors.orange : Colors.black,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          Expanded(flex: 2, child: Text(req['remarks'] ?? "—")),
+                                                        ],
+                                                      ),
                                                   ],
                                                 ),
                                               ),
@@ -541,6 +656,31 @@ class _StudentDashboardState extends State<StudentDashboard> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _drawerNavItem(IconData icon, String label) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(label),
+      onTap: () {
+        Navigator.pop(context);
+        if (label == "Logout") {
+          Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
+        } else if (label == "Request") {
+          Navigator.push(context,
+            MaterialPageRoute(builder: (_) => StudentRequestForm(token: widget.token)));
+        } else if (label == "Dashboard") {
+          fetchRequests();
+        } else if (label == "History") {
+          Navigator.push(context,
+            MaterialPageRoute(builder: (_) => StudentAllRequestsScreen(token: widget.token)));
+        } else if (label == "Notifications") {
+          Navigator.push(context,
+            MaterialPageRoute(builder: (_) => StudentNotificationsScreen(token: widget.token)))
+          .then((_) => fetchUnreadNotificationCount());
+        }
+      },
     );
   }
 }

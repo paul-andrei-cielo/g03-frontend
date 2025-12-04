@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'request_summary_screen.dart';
 import 'student_dashboard.dart';
 import 'student_request_form.dart';
+import 'student_notifications_screen.dart';
 
 const String baseUrl = 'https://g03-backend.onrender.com';
 
@@ -262,10 +263,8 @@ class _EditRequestScreenState extends State<EditRequestScreen> {
                       children: [
                         _buildNavItem(Icons.home, "Dashboard"),
                         _buildNavItem(Icons.article, "Request"),
-                        _buildNavItem(Icons.search, "Tracking"),
+                        _buildNavItem(Icons.notifications, "Notifications"),
                         _buildNavItem(Icons.history, "History"),
-                        _buildNavItem(Icons.person, "Profile"),
-                        _buildNavItem(Icons.help, "Help"),
                       ],
                     ),
                   ),
@@ -425,6 +424,13 @@ class _EditRequestScreenState extends State<EditRequestScreen> {
               context,
               MaterialPageRoute(
                 builder: (context) => StudentRequestForm(token: widget.token),
+              ),
+            );
+          } else if (label == "Notifications") {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentNotificationsScreen(token: widget.token),
               ),
             );
           } else if (label == "History") {

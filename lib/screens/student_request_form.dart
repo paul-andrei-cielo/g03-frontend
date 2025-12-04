@@ -144,87 +144,128 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
   // -------------------------
   @override
   Widget build(BuildContext context) {
+     final isMobile = MediaQuery.of(context).size.width < 800; 
+
     return Scaffold(
+        drawer: isMobile
+          ? Drawer(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  DrawerHeader(
+                    decoration: BoxDecoration(color: Colors.red[900]),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 35,
+                          backgroundImage: AssetImage('assets/images/Req-ITLogo.png'),
+                        ),
+                        SizedBox(height: 10),
+                        Text(
+                          studentName,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          studentNumber,
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _drawerNavItem(Icons.home, "Dashboard"),
+                  _drawerNavItem(Icons.article, "Request"),
+                  _drawerNavItem(Icons.notifications, "Notifications"),
+                  _drawerNavItem(Icons.history, "History"),
+                  _drawerNavItem(Icons.logout, "Logout"),
+                ],
+              ),
+            )
+          : null,
       backgroundColor: Colors.white,
       body: Row(
         children: [
           // Sidebar
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            width: isCollapsed ? 80 : 250,
-            color: Colors.red[900],
-            child: Column(
-              children: [
-                const SizedBox(height: 30),
-                if (!isCollapsed)
-                  Column(
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                        ),
-                        child: ClipOval(
-                          child: Image.asset(
-                            'assets/images/Req-ITLogo.png',
-                            fit: BoxFit.cover,
+          if (!isMobile)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: isCollapsed ? 80 : 250,
+              color: Colors.red[900],
+              child: Column(
+                children: [
+                  const SizedBox(height: 30),
+                  if (!isCollapsed)
+                    Column(
+                      children: [
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white,
+                          ),
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/images/Req-ITLogo.png',
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        studentName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontFamily: 'Montserrat',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                        const SizedBox(height: 10),
+                        Text(
+                          studentName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontFamily: 'Montserrat',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        studentNumber,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontFamily: 'Montserrat',
-                          fontSize: 14,
+                        Text(
+                          studentNumber,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontFamily: 'Montserrat',
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
-                    ],
-                  )
-                else
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/images/Req-ITLogo.png',
-                        width: 45,
-                        height: 45,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 40),
-                // Navigation items
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        _buildNavItem(Icons.home, "Dashboard"),
-                        _buildNavItem(Icons.article, "Request"),
-                        _buildNavItem(Icons.notifications, "Notifications"),
-                        _buildNavItem(Icons.history, "History"),
                       ],
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/Req-ITLogo.png',
+                          width: 45,
+                          height: 45,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 40),
+                  // Navigation items
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          _buildNavItem(Icons.home, "Dashboard"),
+                          _buildNavItem(Icons.article, "Request"),
+                          _buildNavItem(Icons.notifications, "Notifications"),
+                          _buildNavItem(Icons.history, "History"),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                _buildNavItem(Icons.logout, "Logout"),
-                const SizedBox(height: 20),
-              ],
+                  _buildNavItem(Icons.logout, "Logout"),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
-          ),
 
           // Main content
           Expanded(
@@ -234,96 +275,109 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
+                  // HEADER
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // LEFT SIDE — Menu + Greeting
+                      Row(
+                        children: [
+                          if (!isMobile)
                             IconButton(
                               icon: Icon(
                                 isCollapsed ? Icons.menu_open : Icons.menu,
                                 size: 30,
-                                color: Colors.black87,
                               ),
-                              onPressed: () {
-                                setState(() {
-                                  isCollapsed = !isCollapsed;
-                                });
+                              onPressed: () => setState(() => isCollapsed = !isCollapsed),
+                            )
+                          else
+                            Builder(
+                              builder: (context) {
+                                return IconButton(
+                                  icon: const Icon(Icons.menu, size: 26), 
+                                  onPressed: () => Scaffold.of(context).openDrawer(),
+                                );
                               },
                             ),
-                            const SizedBox(width: 10),
-                            Text(
-                              "Hello, ${studentName.split(' ').first}!",
-                              style: TextStyle(
-                                fontFamily: 'Montserrat',
-                                fontWeight: FontWeight.bold,
-                                fontSize: 28,
-                                color: Colors.black87,
-                              ),
+
+                          const SizedBox(width: 10),
+
+                          Text(
+                            "Hello, ${studentName.split(' ').first}!",
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontWeight: FontWeight.bold,
+                              fontSize: isMobile ? 20 : 28,
+                              color: Colors.black87,
                             ),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            // Notification Bell with Badge
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => StudentNotificationsScreen(token: widget.token),
-                                  ),
-                                ).then((_) {
-                                  // Refresh count when returning
-                                  fetchUnreadNotificationCount();
-                                });
-                              },
-                              child: Stack(
-                                children: [
-                                  Icon(
-                                    Icons.notifications,
-                                    size: 30,
-                                    color: Colors.black87,
-                                  ),
-                                  if (notificationCount > 0)
-                                    Positioned(
-                                      right: 0,
-                                      top: 0,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.red,
-                                          borderRadius: BorderRadius.circular(10),
+                          ),
+                        ],
+                      ),
+
+                      // RIGHT SIDE — Notifications + Logo
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => StudentNotificationsScreen(token: widget.token),
+                                ),
+                              ).then((_) => fetchUnreadNotificationCount());
+                            },
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Icon(
+                                  Icons.notifications,
+                                  size: isMobile ? 24 : 30,
+                                  color: Colors.black87,
+                                ),
+
+                                if (notificationCount > 0)
+                                  Positioned(
+                                    right: -2,
+                                    top: -2,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      constraints: const BoxConstraints(
+                                        minWidth: 14,
+                                        minHeight: 14,
+                                      ),
+                                      child: Text(
+                                        notificationCount > 99 ? '99+' : notificationCount.toString(),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
                                         ),
-                                        constraints: const BoxConstraints(
-                                          minWidth: 16,
-                                          minHeight: 16,
-                                        ),
-                                        child: Text(
-                                          notificationCount > 99 ? '99+' : notificationCount.toString(),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                          textAlign: TextAlign.center,
-                                        ),
+                                        textAlign: TextAlign.center,
                                       ),
                                     ),
-                                ],
-                              ),
+                                  ),
+                              ],
                             ),
-                            const SizedBox(width: 15),
-                            Image.asset(
-                              'assets/images/Req-ITLongLogo.png',
-                              height: 60,
-                              fit: BoxFit.contain,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          ),
+
+                          SizedBox(width: isMobile ? 10 : 20),
+
+                          Image.asset(
+                            isMobile
+                                ? 'assets/images/Req-ITLogo.png'
+                                : 'assets/images/Req-ITLongLogo.png',
+                            height: isMobile ? 35 : 60,
+                            fit: BoxFit.contain,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                     const SizedBox(height: 25),
                     const Text(
                       "+ Request New Document",
@@ -595,7 +649,54 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
     );
   }
 
-   Widget _buildStep1Form() {
+  Widget _drawerNavItem(IconData icon, String label) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(label),
+      onTap: () {
+        Navigator.pop(context); // close drawer
+
+        if (label == "Logout") {
+          Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
+
+        } else if (label == "Dashboard") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => StudentDashboard(token: widget.token),
+            ),
+          );
+
+        } else if (label == "Request") {
+          // already on this page
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You are already on the Request page')),
+          );
+
+        } else if (label == "History") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => StudentAllRequestsScreen(token: widget.token),
+            ),
+          );
+
+        } else if (label == "Notifications") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  StudentNotificationsScreen(token: widget.token),
+            ),
+          ).then((_) => fetchUnreadNotificationCount());
+        }
+      },
+    );
+  }
+
+  Widget _buildStep1Form() {
+    final isMobile = MediaQuery.of(context).size.width < 800;
+
     return Container(
       key: const ValueKey(1),
       padding: const EdgeInsets.all(20),
@@ -613,7 +714,7 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
                 color: Colors.red[900],
                 fontFamily: 'Montserrat',
                 fontWeight: FontWeight.bold,
-                fontSize: 16,
+                fontSize: isMobile ? 16 : 18,
               ),
             ),
             const SizedBox(height: 20),
@@ -626,25 +727,44 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildTextField(
+
+            // 👇 Row on desktop, stacked on mobile
+            if (isMobile)
+              Column(
+                children: [
+                  _buildTextField(
                     "School Year",
                     "e.g. 2024–2025",
                     _lastSemController,
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _buildTextField(
+                  _buildTextField(
                     "Semester",
                     "1st / 2nd / Summer",
                     _semesterController,
                   ),
-                ),
-              ],
-            ),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      "School Year",
+                      "e.g. 2024–2025",
+                      _lastSemController,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildTextField(
+                      "Semester",
+                      "1st / 2nd / Summer",
+                      _semesterController,
+                    ),
+                  ),
+                ],
+              ),
+
             _buildTextField("Date Graduated", "Optional", _dateGraduatedController),
             _buildTextField("Purpose *", "e.g., For employment", _purposeController),
             _buildTextField("Contact No. *", "", _contactNoController),
@@ -655,6 +775,8 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
   }
 
   Widget _buildStep2Form() {
+    final isMobile = MediaQuery.of(context).size.width < 800;
+
     return Container(
       key: const ValueKey(2),
       padding: const EdgeInsets.all(20),
@@ -662,148 +784,169 @@ class _StudentRequestFormState extends State<StudentRequestForm> {
         color: Colors.grey[200],
         borderRadius: BorderRadius.circular(25),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Document List
-          Expanded(
-            flex: 3,
-            child: Column(
+
+      child: isMobile
+          // 👇 MOBILE: column (list on top, total below)
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  "Step 2: Credentials Applied",
-                  style: TextStyle(
-                    color: Colors.red[900],
-                    fontFamily: 'Montserrat',
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 10),
                 Expanded(
-                  child: ListView(
-                    children: _documents.map((doc) {
-                      return Column(
+                  child: _buildDocumentList(isMobile),
+                ),
+                const SizedBox(height: 16),
+                _buildTotalPriceBox(isMobile),
+              ],
+            )
+
+          // 👇 DESKTOP: row (list left, total right)
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: _buildDocumentList(isMobile),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  flex: 1,
+                  child: _buildTotalPriceBox(isMobile),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildDocumentList(bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Step 2: Credentials Applied",
+          style: TextStyle(
+            color: Colors.red[900],
+            fontFamily: 'Montserrat',
+            fontWeight: FontWeight.bold,
+            fontSize: isMobile ? 16 : 18,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Expanded(
+          child: ListView(
+            children: _documents.map((doc) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CheckboxListTile(
+                    activeColor: Colors.red[900],
+                    value: doc["selected"],
+                    onChanged: (val) {
+                      setState(() => doc["selected"] = val!);
+                    },
+                    title: Text(
+                      doc["name"],
+                      style: TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontWeight: FontWeight.bold,
+                        fontSize: isMobile ? 14 : 15,
+                      ),
+                    ),
+                    secondary: Text(
+                      "₱${doc["price"]}",
+                      style: const TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+
+                  if (doc["selected"])
+                    Padding(
+                      padding:
+                          const EdgeInsets.only(left: 40, right: 20, bottom: 10),
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          CheckboxListTile(
-                            activeColor: Colors.red[900],
-                            value: doc["selected"],
-                            onChanged: (val) {
-                              setState(() => doc["selected"] = val!);
-                            },
-                            title: Text(
-                              doc["name"],
-                              style: const TextStyle(
-                                fontFamily: 'Montserrat',
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
+                          Row(
+                            children: [
+                              const Text(
+                                "Copies:",
+                                style: TextStyle(
+                                  fontFamily: 'Montserrat',
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                            secondary: Text(
-                              "₱${doc["price"]}",
-                              style: const TextStyle(
-                                fontFamily: 'Montserrat',
-                                fontWeight: FontWeight.w600,
+                              const SizedBox(width: 10),
+                              SizedBox(
+                                width: 70,
+                                child: TextField(
+                                  keyboardType: TextInputType.number,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      doc["copies"] =
+                                          int.tryParse(value) ?? 1;
+                                    });
+                                  },
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
-
-                          // Copies
-                          if (doc["selected"])
-                            Padding(
-                              padding: const EdgeInsets.only(left: 40, right: 20, bottom: 10),
-                              child: Row(
-                                children: [
-                                  const Text(
-                                    "Copies:",
-                                    style: TextStyle(
-                                      fontFamily: 'Montserrat',
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  SizedBox(
-                                    width: 70,
-                                    child: TextField(
-                                      keyboardType: TextInputType.number,
-                                      onChanged: (value) {
-                                        setState(() {
-                                          doc["copies"] = int.tryParse(value) ?? 1;
-                                        });
-                                      },
-                                      decoration: InputDecoration(
-                                        filled: true,
-                                        fillColor: Colors.white,
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(20),
-                                          borderSide: BorderSide.none,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                          // Remarks (if applicable)
-                          if (doc.containsKey("remarks") && doc["selected"])
-                            Padding(
-                              padding: const EdgeInsets.only(left: 40, right: 20, bottom: 10),
-                              child: TextField(
-                                onChanged: (value) => doc["remarks"] = value,
-                                decoration: InputDecoration(
-                                  hintText: "Remarks (optional)",
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(25),
-                                    borderSide: BorderSide.none,
-                                  ),
+                          if (doc.containsKey("remarks")) const SizedBox(height: 8),
+                          if (doc.containsKey("remarks"))
+                            TextField(
+                              onChanged: (value) => doc["remarks"] = value,
+                              decoration: InputDecoration(
+                                hintText: "Remarks (optional)",
+                                filled: true,
+                                fillColor: Colors.white,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(25),
+                                  borderSide: BorderSide.none,
                                 ),
                               ),
                             ),
                         ],
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
+                      ),
+                    ),
+                ],
+              );
+            }).toList(),
           ),
+        ),
+      ],
+    );
+  }
 
-          const SizedBox(width: 20),
-
-          // Total Price
-          Expanded(
-            flex: 1,
-            child: Column(
-              children: [
-                const Text(
-                  "Total",
-                  style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Container(height: 2, color: Colors.black),
-                const SizedBox(height: 10),
-                Text(
-                  "₱ ${_totalPrice.toStringAsFixed(2)}",
-                  style: const TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontWeight: FontWeight.bold,
-                    fontSize: 24,
-                  ),
-                ),
-              ],
-            ),
+  Widget _buildTotalPriceBox(bool isMobile) {
+    return Column(
+      children: [
+        const Text(
+          "Total",
+          style: TextStyle(
+            fontFamily: 'Montserrat',
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 10),
+        Container(height: 2, color: Colors.black),
+        const SizedBox(height: 10),
+        Text(
+          "₱ ${_totalPrice.toStringAsFixed(2)}",
+          style: TextStyle(
+            fontFamily: 'Montserrat',
+            fontWeight: FontWeight.bold,
+            fontSize: isMobile ? 24 : 26,
+          ),
+        ),
+      ],
     );
   }
 
