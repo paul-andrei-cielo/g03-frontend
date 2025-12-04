@@ -160,56 +160,55 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
   // BUILD TIMELINE
   // ────────────────────────────────────────────────
   List<Map<String, dynamic>> _buildTimeline() {
-    final currentStatus = widget.request['status']?.toUpperCase() ?? 'FOR CLEARANCE';
-    final requestDate = widget.request['request_date'];
+      final currentStatus = widget.request['status']?.toUpperCase() ?? 'FOR CLEARANCE';
+      final requestDate = widget.request['request_date'];
 
-    List<Map<String, dynamic>> timeline = [];
-    int lastIndex = 0;
+      List<Map<String, dynamic>> timeline = [];
 
-    if (currentStatus == 'CANCELLED' || currentStatus == 'REJECTED') {
-      lastIndex = statusOrder.length - 1;
-      for (int i = 0; i <= lastIndex; i++) {
-        final status = statusOrder[i];
-        final meta = statusMetadata[status]!;
+      if (currentStatus == 'CANCELLED' || currentStatus == 'REJECTED') {
+        int lastIndex = currentStatus == 'CANCELLED' ? 1 : 0; // For CANCELLED, show up to FOR PAYMENT; for REJECTED, up to FOR CLEARANCE
+        for (int i = 0; i <= lastIndex; i++) {
+          final status = statusOrder[i];
+          final meta = statusMetadata[status]!;
+          timeline.add({
+            'status': _formatStatus(status),
+            'details': '', // no subtitle for past statuses
+            'timestamp': _getTimestamp(i, requestDate),
+            'color': meta['color'],
+            'upload': false, // upload button should never show for past statuses
+          });
+        }
+        final meta = statusMetadata[currentStatus]!;
         timeline.add({
-          'status': _formatStatus(status),
-          'details': '', // no subtitle
-          'timestamp': _getTimestamp(i, requestDate),
+          'status': _formatStatus(currentStatus),
+          'details': meta['details'],
+          'timestamp': DateFormat('MM/dd/yyyy\nHH:mm:ss').format(DateTime.now()),
           'color': meta['color'],
-          'upload': false, // upload button should never show for past statuses
+          'upload': false,
         });
+      } else {
+        final currentIndex = statusOrder.indexOf(currentStatus);
+        final lastIndex = currentIndex == -1 ? 0 : currentIndex;
+
+        for (int i = 0; i <= lastIndex; i++) {
+          final status = statusOrder[i];
+          final meta = statusMetadata[status]!;
+
+          // Upload button logic: Only show for FOR PAYMENT if it is the latest status
+          bool showUpload = meta['upload'] && i == lastIndex;
+
+          timeline.add({
+            'status': _formatStatus(status),
+            'details': i == lastIndex ? meta['details'] : '',
+            'timestamp': _getTimestamp(i, requestDate),
+            'color': meta['color'],
+            'upload': showUpload,
+          });
+        }
       }
-      final meta = statusMetadata[currentStatus]!;
-      timeline.add({
-        'status': _formatStatus(currentStatus),
-        'details': meta['details'],
-        'timestamp': DateFormat('MM/dd/yyyy\nHH:mm:ss').format(DateTime.now()),
-        'color': meta['color'],
-        'upload': false,
-      });
-    } else {
-      final currentIndex = statusOrder.indexOf(currentStatus);
-      lastIndex = currentIndex == -1 ? 0 : currentIndex;
 
-      for (int i = 0; i <= lastIndex; i++) {
-        final status = statusOrder[i];
-        final meta = statusMetadata[status]!;
-
-        // Upload button logic: Only show for FOR PAYMENT if it is the latest status
-        bool showUpload = meta['upload'] && i == lastIndex;
-
-        timeline.add({
-          'status': _formatStatus(status),
-          'details': i == lastIndex ? meta['details'] : '',
-          'timestamp': _getTimestamp(i, requestDate),
-          'color': meta['color'],
-          'upload': showUpload,
-        });
-      }
+      return timeline;
     }
-
-    return timeline;
-  }
 
   String _formatStatus(String status) {
     return status.split(' ').map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase()).join(' ');
@@ -284,9 +283,56 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("No")),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Request cancelled.")));
+            onPressed: () async {
+              Navigator.pop(context); // Close the dialog
+
+              // Get the request ID (assuming it's stored as '_id' in the request map)
+              final requestId = widget.request['_id'];
+              if (requestId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Error: Request ID not found.")),
+                );
+                return;
+              }
+
+              try {
+                // Make the API call to cancel the request
+                final response = await http.put(
+                  Uri.parse('$baseUrl/requests/updaterequest/$requestId'),
+                  headers: {
+                    'Authorization': 'Bearer ${widget.token}',
+                    'Content-Type': 'application/json',
+                  },
+                  body: json.encode({'status': 'CANCELLED'}),
+                );
+
+                if (response.statusCode == 200) {
+                  final data = json.decode(response.body);
+                  if (data['success'] == true) {
+                    // Update the local request status to reflect the change immediately
+                    setState(() {
+                      widget.request['status'] = 'CANCELLED';
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Request cancelled successfully.")),
+                    );
+                    // Optional: Navigate back to the previous screen (e.g., request list) to refresh the view
+                    // Navigator.pop(context);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Failed to cancel request: ${data['message'] ?? 'Unknown error'}")),
+                    );
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Failed to cancel request: ${response.statusCode}")),
+                  );
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Error cancelling request: $e")),
+                );
+              }
             },
             child: const Text("Yes, Cancel"),
           ),
@@ -295,7 +341,7 @@ class _StudentTrackingScreenState extends State<StudentTrackingScreen> {
     );
   }
 
-  @override
+    @override
   Widget build(BuildContext context) {
     final reference = widget.request['reference_id'] ?? "#68ebba15";
     final document = widget.request['documents'] != null && (widget.request['documents'] as List).isNotEmpty
